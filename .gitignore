@@ -1,0 +1,7 @@
+# Local state written by the demo scripts. Contains the TESTNET-ONLY throwaway
+# secret key (mode 600) and the deployed contract id — never commit these.
+.deploy/
+
+# Rust build artifacts (the contract directory also carries its own /target
+# ignore; this covers any future Rust projects).
+contracts/rapid-expiry-demo/target/
