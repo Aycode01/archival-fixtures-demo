@@ -1,0 +1,33 @@
+# test-contract.yml — build and unit-test the rapid-expiry-demo contract.
+#
+# Runs on every push to main and every pull request so contract breakage
+# (like the SDK-version mismatch this workflow now guards against) is caught
+# in CI instead of at deploy time. Job name: contract-tests (used by branch
+# protection as a required status check).
+
+name: test-contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable + wasm32v1-none)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: cargo test (real testnet TTL parameters)
+        run: cargo test --manifest-path contracts/rapid-expiry-demo/Cargo.toml
+
+      - name: cargo build (release wasm for deployment)
+        run: cargo build --manifest-path contracts/rapid-expiry-demo/Cargo.toml --target wasm32v1-none --release
