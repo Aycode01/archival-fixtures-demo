@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="archival-fixtures-demo project banner">
+  <defs>
+    <linearGradient id="shield-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="1280" height="640" fill="#111318"/>
+
+  <!-- subtle circuit / ledger lines echoing the network theme -->
+  <g fill="none" stroke-linecap="round">
+    <polyline points="70 92 190 92 190 150" stroke="#3b82f6" stroke-opacity="0.08" stroke-width="2"/>
+    <polyline points="70 548 230 548 230 480" stroke="#2dd4bf" stroke-opacity="0.08" stroke-width="2"/>
+    <polyline points="1030 130 1190 130 1190 80" stroke="#2dd4bf" stroke-opacity="0.08" stroke-width="2"/>
+    <polyline points="1050 560 1210 560" stroke="#3b82f6" stroke-opacity="0.08" stroke-width="2"/>
+  </g>
+  <g fill="#2dd4bf" fill-opacity="0.12">
+    <circle cx="190" cy="150" r="3"/>
+    <circle cx="230" cy="480" r="3"/>
+    <circle cx="1190" cy="80" r="3"/>
+  </g>
+
+  <!-- shield badge, slightly left of center -->
+  <g transform="translate(400 325)">
+    <path d="M -140 -140 L 140 -140 L 140 -35 Q 140 140 0 195 Q -140 140 -140 -35 Z"
+          fill="#151b28" stroke="url(#shield-grad)" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M -110 -90 L 0 20 L 110 -90 L 110 -40 L 0 70 L -110 -40 Z"
+          fill="url(#shield-grad)" fill-opacity="0.9"/>
+    <path d="M -60 120 L 60 120" stroke="url(#shield-grad)" stroke-width="6" stroke-linecap="round" stroke-opacity="0.35"/>
+  </g>
+
+  <!-- project name as real text, derived from the repo name -->
+  <text x="590" y="292" font-family="'DejaVu Sans', Arial, 'Helvetica Neue', sans-serif" font-size="72" font-weight="800" letter-spacing="4" fill="#2dd4bf">ARCHIVAL</text>
+  <text x="590" y="384" font-family="'DejaVu Sans', Arial, 'Helvetica Neue', sans-serif" font-size="72" font-weight="800" letter-spacing="2" fill="#3b82f6">FIXTURES DEMO</text>
+  <text x="590" y="450" font-family="'DejaVu Sans', Arial, 'Helvetica Neue', sans-serif" font-size="24" letter-spacing="1" fill="#8b93a7">Simulating Soroban state archival on testnet</text>
+</svg>

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="archival-fixtures-demo project banner" />
+</p>
+
 # archival-fixtures-demo
 
 A deliberately short-lived Soroban contract (plus the scripts around it) that
