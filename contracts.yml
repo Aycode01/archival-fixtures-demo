@@ -1,0 +1,45 @@
+# contracts.yml — fixture manifest for the archival-fixtures-demo suite.
+#
+# This file tells the sibling repos what to watch. In particular,
+# action-state-watch's self-check workflow reads it to know which live
+# testnet contract to point `soroban-state-sentinel scan` at, so its
+# end-to-end test exercises a real, decaying entry instead of a mock.
+#
+# `contract_id` is intentionally not hard-coded here: deployments are
+# throwaway and get a fresh id each time. Set the CONTRACT_ID repository
+# variable (or this repo's .deploy/contract-id.txt after running
+# scripts/deploy-and-shrink-ttl.sh) and keep this file stable.
+#
+# ⚠️  TESTNET ONLY. The entry below lives on Stellar testnet and is funded,
+# signed, and restored with a TESTNET-ONLY throwaway key. Never point these
+# values at mainnet.
+
+version: 1
+
+fixtures:
+  - name: rapid-expiry-demo
+    description: >-
+      Single persistent entry (key "VALUE") created at the testnet network
+      minimum TTL (120,960 ledgers ≈ 7 days) and never extended, so it
+      decays Healthy -> Critical -> Archived on a predictable real-time
+      timeline and must be restored with RestoreFootprintOp.
+    network: testnet
+    rpc_url: https://soroban-testnet.stellar.org
+    network_passphrase: "Test SDF Network ; September 2015"
+    # Set to the deployed contract id: repository variable CONTRACT_ID,
+    # or local file .deploy/contract-id.txt.
+    contract_id_env: CONTRACT_ID
+    wasm: contracts/rapid-expiry-demo/target/wasm32-unknown-unknown/release/rapid_expiry_demo.wasm
+    deploy_script: scripts/deploy-and-shrink-ttl.sh
+    entries:
+      - key: VALUE
+        key_scval_xdr: "AAAADwAAAAVWQUxVRQ==" # Symbol "VALUE"
+        durability: persistent
+        min_persistent_ttl_ledgers: 120960
+    scan:
+      # Thresholds passed to `soroban-state-sentinel scan` so the demo arc
+      # is observable: a fresh entry (~7 days) is Healthy and flips to
+      # Critical at <= 1 day. See scripts/lib.sh for the rationale.
+      healthy_days: 1
+      critical_days: 1
+      ledger_close_seconds: 5
