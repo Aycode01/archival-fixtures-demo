@@ -1,4 +1,4 @@
-# Review — `archival-fixtures-demo` (updated 2026-09-09, after the completion pass)
+# Review — `archival-fixtures-demo` (updated 2026-09-09: completion pass + banner pass)
 
 A self-review of the repo as it stands after the verification/hardening
 pass: the earlier review marked everything "verified by construction"; this
@@ -26,6 +26,7 @@ a real, decaying testnet entry to watch, not a mock.
 | Contract | `cargo test` (5/5) + release WASM build, both also green in GitHub Actions |
 | CI | Live GitHub Actions runs (test-contract passed; demo-scan scheduled runs recorded) |
 | Repo hygiene | Full `find` of `.git`/`.gitkeep`/`.gitignore`, `git status --ignored`, `git check-ignore` |
+| README banner convention | Live GitHub: `karagozemin/Sub-Rosa` (top-level `assets/` dir + `<p align="center">` wrapper); `soroban-state-sentinel`, `carbonledger`, `back-it-onchain` have no banner to contradict it |
 
 ## Verdict by area (updated)
 
@@ -106,6 +107,21 @@ a real, decaying testnet entry to watch, not a mock.
   the differentiation paragraph (SoroScope = gas/CPU profiling,
   Soroban-Guard = static security analysis; this suite = post-deployment
   TTL/archival monitoring).
+- **README banner (Gap 1) now in place** (`f4a6f26`) — an earlier
+  compressed-raster banner attempt was reverted at the owner's request
+  (`main` reset to `b6c5840` and force-pushed, then the 1.8 MB handoff
+  source in `images/` removed in `be6d10e`), so the banner was regenerated
+  from scratch as an SVG: a hand-authored 1280×640 `assets/banner.svg`
+  with the repo name as real `<text>` elements (`ARCHIVAL` in teal,
+  `FIXTURES DEMO` in blue — pulled from the repo name itself so it can't
+  drift), tagline "Simulating Soroban state archival on testnet" grounded
+  in the README's own description, and a blue→teal shield on the dark
+  `#111318` background. Rasterized to `assets/banner.png` (~53 KB,
+  1280×640, under the 200 KB target) and referenced above the README
+  title, centered per the confirmed approved-repo convention (`assets/`
+  dir + `<p align="center">`, matched `karagozemin/Sub-Rosa`; see Review
+  method table). Remote verified: GitHub's rendered README rewrites the
+  `<img>` to the raw URL, which serves 200 `image/png` end-to-end.
 
 ### Hygiene — clean
 
@@ -151,6 +167,9 @@ a real, decaying testnet entry to watch, not a mock.
    public (issue #4).
 4. **Sentinel release binaries** — none published; consumers build from
    source (issue #7).
+5. **Remaining Gap-1 items** — the README banner item is closed; badges,
+   the maintainer table, GitHub topics, and the contrib.rocks credits
+   section are still open (all separate, already-scoped items).
 
 ## Blocked items that need the repo owner (token permissions)
 
@@ -190,4 +209,10 @@ the Archived/restore demonstration. What remains is either real-time wait
 (the decay), owner-side admin actions the environment token cannot perform
 (variables/secrets, workflow dispatch, branch protection), or dependencies
 outside this repo (`action-state-watch` publication). No known design flaws
-remain unaddressed.
+remain unaddressed. The Gap-1 README banner item is now closed: after an
+earlier raster-banner attempt was reverted at the owner's request, the
+banner was regenerated as a hand-authored SVG with the repo name as real
+`<text>` (so it can't drift out of sync) and rasterized to a ~53 KB PNG —
+in the README, centered per the confirmed approved-repo convention, and
+verified serving 200 over HTTPS. Badges, the maintainer table, topics, and
+contrib.rocks remain the open Gap-1 items.
