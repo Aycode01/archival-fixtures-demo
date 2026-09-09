@@ -82,7 +82,7 @@ scan_once() {
     scan="$(sentinel_scan_json "$CONTRACT_ID")"
     ttl="$(scan_ttl "$scan")"
     status="$(scan_status "$scan")"
-    latest="$(jq -r '.latestLedger' <<<"$scan")"
+    latest="$(jq -r '.network.latest_ledger' <<<"$scan")"
     printf '[%s] ledger %-10s ttl %-9s (%s) band: %s\n' \
         "$(date -u +%H:%M:%SZ)" "$latest" "$ttl" "$(format_duration "${ttl:-0}")" "$status"
     printf '%s' "${ttl:-0}" > /tmp/.rapid-expiry-ttl

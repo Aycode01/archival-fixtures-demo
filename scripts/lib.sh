@@ -40,6 +40,12 @@ DEPLOY_DIR="$REPO_ROOT/.deploy"
 # The single persistent entry key used by the demo contract.
 DEMO_ENTRY_KEY="VALUE"
 
+# The same key as a base64-XDR SCVal (Symbol "VALUE"), which is what
+# soroban-state-sentinel expects in its --keys flag. Derived from the XDR
+# encoding of SCV_SYMBOL (15) + length 5 + "VALUE":
+#   python3 -c "import struct,base64; print(base64.b64encode(struct.pack('>II',15,5)+b'VALUE').decode())"
+DEMO_ENTRY_SCVAL_XDR="AAAADwAAAAVWQUxVRQ=="
+
 # Mirror of the contract's MIN_PERSISTENT_TTL_LEDGERS
 # (contracts/rapid-expiry-demo/src/lib.rs): the testnet network minimum for a
 # new or restored persistent entry, in ledgers, as of 2026-09-08 (protocol 28).
@@ -142,25 +148,59 @@ rpc_latest_ledger() {
 
 # One sentinel scan of the demo contract, as JSON on stdout.
 #
-# The sentinel defines the canonical CLI/JSON contract (see its SCHEMA.md);
-# scripts in this repo consume:
-#   { "status": "Healthy"|"Critical"|"Archived",
-#     "latestLedger": N,
-#     "entries": [ { "key": "VALUE", "ttl": N, "liveUntilLedger": N } ],
-#     "scannedAt": "..." }
+# The sentinel defines the canonical CLI/JSON contract (see its SCHEMA.md,
+# currently schema 1.1.0); scripts in this repo consume:
+#   network.latest_ledger
+#   entries[]: { id, kind, band, ledgers_remaining, live_until_ledger_seq }
+#   bands: healthy | expiring_soon | critical | archived
+#
+# Flags we pass and why:
+#   <contract-id>            positional — the sentinel's clap arg is a
+#                            positional, there is no --contract-id flag
+#   --keys <SCVAL>           scan the demo VALUE entry explicitly; without
+#                            --keys the sentinel only covers the contract
+#                            instance and its code
+#   --durability persistent  the VALUE entry is persistent
+#   --healthy-days 1 --critical-days 1
+#                            collapse the band boundaries so a freshly
+#                            deployed entry (~7 days) is Healthy and flips to
+#                            Critical at <= 1 day, which is this repo's
+#                            documented Critical floor. With the sentinel's
+#                            defaults (healthy 30d / critical 7d) a fresh
+#                            demo entry would be flagged Critical immediately
+#                            and the Healthy -> Critical -> Archived arc would
+#                            never be observable.
+#   --ledger-close-seconds   keep the sentinel's ledgers<->days math on the
+#                            same cadence the rest of the repo assumes
 sentinel_scan_json() {
     local contract_id="$1"
-    "$SENTINEL_BIN" scan \
+    "$SENTINEL_BIN" scan "$contract_id" \
         --rpc-url "$SOROBAN_RPC_URL" \
-        --contract-id "$contract_id" \
+        --keys "$DEMO_ENTRY_SCVAL_XDR" \
+        --durability persistent \
+        --healthy-days 1 \
+        --critical-days 1 \
+        --ledger-close-seconds "$LEDGER_SECONDS" \
         --json
 }
 
 # Extract the demo entry's TTL (ledgers) from a sentinel scan JSON blob.
-scan_ttl() { jq -r '.entries[] | select(.key == "'"$DEMO_ENTRY_KEY"'") | .ttl' <<<"$1"; }
+# `ledgers_remaining` is null once the entry is archived; treat that as 0.
+scan_ttl() { jq -r '(.entries[] | select(.kind == "contract_data") | .ledgers_remaining) // 0' <<<"$1"; }
 
-# Extract overall status from a sentinel scan JSON blob.
-scan_status() { jq -r '.status' <<<"$1"; }
+# Extract the demo entry's health band from a sentinel scan JSON blob and map
+# it to the friendly names the docs use (the sentinel emits lowercase bands).
+scan_status() {
+    local band
+    band="$(jq -r '.entries[] | select(.kind == "contract_data") | .band' <<<"$1")"
+    case "$band" in
+        healthy)       echo Healthy ;;
+        expiring_soon) echo Expiring ;;
+        critical)      echo Critical ;;
+        archived)      echo Archived ;;
+        *)             echo "$band" ;;
+    esac
+}
 
 # Human-readable duration for `ledgers` at LEDGER_SECONDS seconds each.
 format_duration() {

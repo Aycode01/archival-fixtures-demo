@@ -153,7 +153,7 @@ info "scanning with soroban-state-sentinel..."
 SCAN="$(sentinel_scan_json "$CONTRACT_ID")"
 STATUS="$(scan_status "$SCAN")"
 TTL="$(scan_ttl "$SCAN")"
-LATEST="$(jq -r '.latestLedger' <<<"$SCAN")"
+LATEST="$(jq -r '.network.latest_ledger' <<<"$SCAN")"
 
 printf '\n'
 printf '  contract id : %s\n' "$CONTRACT_ID"
