@@ -143,6 +143,24 @@ the same TESTNET-ONLY throwaway key, extends the TTL back to a healthy value,
 and prints the post-restore TTL. No sentinel binary is needed in CI — both
 workflows are self-contained with the public stellar CLI.
 
+## Real run transcript
+
+`.transcripts/` captures actual output from the live testnet run (real
+numbers, not placeholders):
+
+- `01-deploy-healthy.txt` — deploy + initialize + starting sentinel scan
+- `02-scan-healthy.json` — sentinel `scan --json` of the live entry
+- `03-wait-check.txt` — the TTL watcher's one-shot check
+- `04-read-entry-ttl.txt` — the off-chain TTL read used by CI
+
+As of 2026-09-09 the demo entry is deployed
+(`CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4`, testnet)
+and decaying in real time: Healthy at ~120,900 ledgers, Critical in ~6
+days, Archived in ~7. The Critical/Archived/restore phases of the
+pipeline complete on that schedule — run `./scripts/trigger-eviction-wait.sh
+--until archived` (or watch the scheduled CI) to observe them, and append
+their transcripts here when they land.
+
 ## Faster rehearsal on a standalone network
 
 Waiting ~7 days on testnet is the honest demo, but for iterating on the

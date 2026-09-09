@@ -1,0 +1,28 @@
+
+======================================================================
+  TESTNET ONLY — no mainnet keys, no mainnet contracts, ever.
+  This script deploys and initializes a TESTNET-ONLY demo contract.
+======================================================================
+
+[demo] rpc:      https://soroban-testnet.stellar.org
+[demo] passphrase: Test SDF Network ; September 2015
+[ ok ] wasm ready: contracts/rapid-expiry-demo/target/wasm32v1-none/release/rapid_expiry_demo.wasm
+[demo] reusing TESTNET-ONLY throwaway key from /workspaces/archival-fixtures-demo/.deploy/testnet-throwaway.secret
+[ ok ] using TESTNET-ONLY throwaway key supplied via TESTNET_THROWAWAY_SECRET_KEY
+[demo] reusing previously deployed contract CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4 (pass --force to redeploy)
+[demo] entry 'VALUE' already exists — skipping initialize
+[demo] scanning with soroban-state-sentinel...
+
+  contract id : CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4
+  entry key   : VALUE (persistent)
+  latest ledger: 4583709
+  entry TTL   : 120915 ledgers (~6d 23h 56m)
+  health band : Healthy
+  archives at : ~ledger 4704624
+
+[ ok ] deploy complete. The entry is at the shortest TTL the network allows and is now decaying.
+[demo] next steps:
+[demo]   - watch it decay / wait for archival:  ./scripts/trigger-eviction-wait.sh --check
+[demo]   - run the full demo pipeline:          ./scripts/run-full-pipeline.sh
+[demo]   - scan it on a schedule:               push + enable .github/workflows/demo-scan.yml
+

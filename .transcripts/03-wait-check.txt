@@ -1,0 +1,11 @@
+
+======================================================================
+  TESTNET ONLY — no mainnet keys, no mainnet contracts, ever.
+  Read-only TTL watcher — never signs or submits.
+======================================================================
+
+[demo] watching entry 'VALUE' on CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4
+[demo] timeline note: with current testnet parameters the entry starts at ~120,959 ledgers
+[demo] (~7 days) and decays ~1 ledger every 5s. There is no way to force this faster;
+[demo] the protocol minimum is enforced at creation and extensions only raise TTL.
+[08:27:56Z] ledger 4583777    ttl 120847    (6d 23h 50m) band: Healthy

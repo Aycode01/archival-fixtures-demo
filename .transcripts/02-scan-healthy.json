@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.1.0",
+  "generated_at_unix": 1788942475,
+  "command": {
+    "subcommand": "scan",
+    "contract_id": "CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4",
+    "rpc_url": "https://soroban-testnet.stellar.org"
+  },
+  "network": {
+    "passphrase": "Test SDF Network ; September 2015",
+    "protocol_version": 28,
+    "latest_ledger": 4583777,
+    "ledger_close_seconds": 5,
+    "ledger_close_seconds_source": "default",
+    "fee_per_rent_1kb": 10000,
+    "fee_per_rent_1kb_source": "state_size_high",
+    "average_soroban_state_size_bytes": null,
+    "max_entry_ttl": 3110400,
+    "min_persistent_ttl": 120960,
+    "min_temporary_ttl": 720
+  },
+  "health_config": {
+    "healthy_min_days": 1,
+    "critical_max_days": 1,
+    "healthy_min_ledgers": 17280,
+    "critical_max_ledgers": 17280,
+    "extend_horizon_ledgers": 17280
+  },
+  "summary": {
+    "entries_scanned": 3,
+    "healthy": 3,
+    "expiring_soon": 0,
+    "critical": 0,
+    "archived": 0,
+    "has_critical": false
+  },
+  "entries": [
+    {
+      "id": "instance",
+      "label": "contract instance",
+      "kind": "contract_instance",
+      "durability": "persistent",
+      "band": "healthy",
+      "current_ledger_seq": 4583777,
+      "live_until_ledger_seq": 4704623,
+      "ledgers_remaining": 120846,
+      "days_remaining": 6,
+      "estimated_archive_unix": 1789546702,
+      "size_bytes": 96,
+      "key_xdr": "AAAABgAAAAEIM8nD3O6AZLoOWMbf4NOUEVSctT4PRtM5jHsdNzkhRgAAABQAAAAB",
+      "ttl_key_xdr": "AAAACXfWsR5lE6klr2hwgm32MMv/4PtAOTR3tHUukaME+ewN",
+      "extend_to_healthy_cost_stroops": 0,
+      "restore_cost_stroops": null
+    },
+    {
+      "id": "code",
+      "label": "contract code (wasm)",
+      "kind": "contract_code",
+      "durability": null,
+      "band": "healthy",
+      "current_ledger_seq": 4583777,
+      "live_until_ledger_seq": 4704622,
+      "ledgers_remaining": 120845,
+      "days_remaining": 6,
+      "estimated_archive_unix": 1789546697,
+      "size_bytes": 2292,
+      "key_xdr": "AAAAB6eilhgPUARVS1zAlPauhc8IBTIM0FZ8nbFCRT6lx+8P",
+      "ttl_key_xdr": "AAAACa6m+PQy5QXKrw5Zsft/KBwy1cQagJz88PJWJJR7QYJ5",
+      "extend_to_healthy_cost_stroops": 0,
+      "restore_cost_stroops": null
+    },
+    {
+      "id": "key.0",
+      "label": "storage key 0",
+      "kind": "contract_data",
+      "durability": "persistent",
+      "band": "healthy",
+      "current_ledger_seq": 4583777,
+      "live_until_ledger_seq": 4704624,
+      "ledgers_remaining": 120847,
+      "days_remaining": 6,
+      "estimated_archive_unix": 1789546707,
+      "size_bytes": 72,
+      "key_xdr": "AAAABgAAAAEIM8nD3O6AZLoOWMbf4NOUEVSctT4PRtM5jHsdNzkhRgAAAA8AAAAFVkFMVUUAAAAAAAAB",
+      "ttl_key_xdr": "AAAACYeYVDbliRAW5/6PajeDw/ck2K4lEZ3a6g+V7tRmK2Zz",
+      "extend_to_healthy_cost_stroops": 0,
+      "restore_cost_stroops": null
+    }
+  ]
+}
