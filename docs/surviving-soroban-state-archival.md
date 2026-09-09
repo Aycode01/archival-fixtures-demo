@@ -95,8 +95,10 @@ minimum — as Critical immediately, so the repo's scripts scan with
 band to nothing and makes the Healthy → Critical → Archived arc observable:
 a fresh entry (~7 days) is `healthy`, it flips to `critical` at ≤ 1 day, and
 archives at 0. The same 17,280-ledger (~1 day) floor is hard-coded in
-`.github/workflows/demo-scan.yml`, which reads the TTL through the contract's
-own `ttl()` function instead of the sentinel binary.
+`.github/workflows/demo-scan.yml`, which reads the TTL off-chain via
+`getLedgerEntries` (`scripts/read-entry-ttl.py`) instead of the sentinel
+binary — contracts cannot read their own TTL, so monitoring is off-chain by
+design.
 
 Its `scan --json` document (schema 1.1.0; field names as defined in the
 sentinel's SCHEMA.md — values below are illustrative placeholders, not a

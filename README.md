@@ -29,16 +29,19 @@ and `action-state-watch` a real, decaying, archivable testnet entry to watch.
 
 ```
 contracts/rapid-expiry-demo/   the contract: one persistent entry "VALUE",
-                               functions initialize / read / touch / extend /
-                               ttl, plus unit tests configured with the real
-                               testnet network parameters
+                               functions initialize / read / touch / extend,
+                               plus unit tests configured with the real testnet
+                               network parameters (no ttl() — contracts cannot
+                               read their own TTL; it is read off-chain)
 scripts/lib.sh                 shared env vars, preflight checks, RPC +
                                sentinel helpers (the TESTNET-ONLY guardrail)
 scripts/deploy-and-shrink-ttl.sh   deploy (or reuse) + initialize + starting scan
 scripts/trigger-eviction-wait.sh   read-only TTL watcher (polls the sentinel)
 scripts/run-full-pipeline.sh       deploy -> decay -> remediate -> verify
-.github/workflows/demo-scan.yml    scheduled TTL scan (self-contained, uses
-                                   the contract's own ttl())
+scripts/read-entry-ttl.py          off-chain TTL read via getLedgerEntries
+                                   (stdlib python; used by CI, no CLI needed)
+.github/workflows/demo-scan.yml    scheduled TTL scan (self-contained,
+                                   off-chain read, fails red on decay)
 .github/workflows/demo-restore.yml manually-triggered restore (RestoreFootprintOp
                                    via the TESTNET-ONLY throwaway key)
 contracts.yml                  fixture manifest consumed by action-state-watch's
@@ -56,14 +59,15 @@ SECURITY.md                   key-handling and disclosure policy
 - `soroban-state-sentinel` on PATH — sibling repo in this suite
   ([`Aycode01/soroban-state-sentinel`](https://github.com/Aycode01/soroban-state-sentinel));
   override the binary name with `SENTINEL_BIN`
-- Rust toolchain with `wasm32-unknown-unknown` only if you need to build the
-  contract WASM or run its tests
+- Rust toolchain with the `wasm32v1-none` target (Rust 1.84+; soroban-sdk 27
+  no longer supports the legacy `wasm32-unknown-unknown` target) only if you
+  need to build the contract WASM or run its tests
 
 ## Quick start
 
 ```bash
 # 1. (optional) build + test the contract
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 cargo test --manifest-path contracts/rapid-expiry-demo/Cargo.toml
 
 # 2. deploy (generates + friendbot-funds a TESTNET-ONLY throwaway key if
@@ -96,7 +100,7 @@ anything that signs or submits is `TESTNET_THROWAWAY_SECRET_KEY`.
 | `STELLAR_CLI_BIN` | `stellar` | stellar-cli binary name/path |
 | `SENTINEL_BIN` | `soroban-state-sentinel` | sentinel binary name/path |
 | `TESTNET_THROWAWAY_SECRET_KEY` | *(none)* | TESTNET-ONLY throwaway `S...` key; if unset, generated + friendbot-funded |
-| `RAPID_EXPIRY_WASM` | `contracts/rapid-expiry-demo/target/wasm32-unknown-unknown/release/rapid_expiry_demo.wasm` | wasm to deploy |
+| `RAPID_EXPIRY_WASM` | `contracts/rapid-expiry-demo/target/wasm32v1-none/release/rapid_expiry_demo.wasm` | wasm to deploy |
 | `CONTRACT_ID_FILE` | `.deploy/contract-id.txt` | where the deployed contract id is persisted |
 | `LEDGER_SECONDS` | `5` | testnet ledger cadence, used only for ETA math |
 
@@ -120,10 +124,11 @@ show how to read them from the ledger).
 ## CI: the scheduled scan and the manual restore
 
 `.github/workflows/demo-scan.yml` runs every 6 hours (and on demand via
-workflow dispatch), reads the entry TTL through the contract's own `ttl()`
-function with the public stellar CLI, prints the health band, and fails the
-run when the entry goes Critical or Archived so the decay turns the schedule
-red. Setup:
+workflow dispatch), reads the entry TTL **off-chain** via
+`getLedgerEntries` (`scripts/read-entry-ttl.py`, stdlib python — contracts
+cannot read their own TTL, by protocol design), prints the health band, and
+fails the run when the entry goes Critical or Archived so the decay turns
+the schedule red. Setup:
 
 1. Deploy once locally: `./scripts/deploy-and-shrink-ttl.sh`
 2. Add a repository **variable** `CONTRACT_ID` = the printed contract id

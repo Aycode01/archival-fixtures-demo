@@ -66,14 +66,15 @@ a real, decaying testnet entry to watch, not a mock.
 ### CI workflows (`.github/workflows/`) — solid, deliberately self-contained
 
 - `demo-scan.yml` (scheduled) and `demo-restore.yml` (manual, added
-  `39d5ce5`) use only the public stellar CLI — no sentinel binary in CI —
-  and share the `CONTRACT_ID` variable + `TESTNET_THROWAWAY_SECRET_KEY`
-  secret, with clear setup headers and missing-config errors.
-- Restore path detects archival by `ttl()` invocation failing at
-  simulation (same signal `demo-scan.yml` relies on), submits
-  `RestoreFootprintOp` via `stellar contract restore`, extends, verifies.
-- **Not executed** — repository variables/secrets aren't configured, and
-  GitHub Actions can't be triggered from here. The YAML parses cleanly.
+  `39d5ce5`) share the `CONTRACT_ID` variable + `TESTNET_THROWAWAY_SECRET_KEY`
+  secret, with clear setup headers and missing-config errors. demo-restore
+  uses the stellar CLI to submit the restore; demo-scan is pure python3
+  (`scripts/read-entry-ttl.py`) — no sentinel binary and no CLI needed in CI.
+- Restore path detects archival via the off-chain TTL read (0 = archived),
+  submits `RestoreFootprintOp` via `stellar contract restore`, extends, and
+  re-verifies off-chain.
+- **Not executed in GitHub Actions yet** — variables/secrets were configured
+  after this review was written; see the completion-pass commit log.
 
 ### Fixture manifest (`contracts.yml`) — proposal, unvalidated
 
