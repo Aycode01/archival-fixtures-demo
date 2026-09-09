@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="archival-fixtures-demo" />
+  <img src="assets/archival-fixtures-demo-banner.png" alt="archival-fixtures-demo project banner" />
 </p>
 
 # archival-fixtures-demo
