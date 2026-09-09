@@ -73,8 +73,14 @@ a real, decaying testnet entry to watch, not a mock.
 - Restore path detects archival via the off-chain TTL read (0 = archived),
   submits `RestoreFootprintOp` via `stellar contract restore`, extends, and
   re-verifies off-chain.
-- **Not executed in GitHub Actions yet** — variables/secrets were configured
-  after this review was written; see the completion-pass commit log.
+- **Live GitHub Actions status** (2026-09-09): `test-contract.yml` ran on
+  the push and **passed** (cargo test + wasm build). `demo-scan.yml`'s
+  scheduled cron has fired twice and **failed both times with
+  `CONTRACT_ID repository variable is not set`** — the documented setup
+  requirement, now proven live; the repo owner must set the variable and
+  secret before the next scheduled run goes green. Workflow dispatch is
+  blocked from this environment (token lacks Actions secrets/variables and
+  workflow-dispatch permissions), so `demo-restore.yml` has not been run.
 
 ### Fixture manifest (`contracts.yml`) — proposal, unvalidated
 
@@ -122,9 +128,11 @@ a real, decaying testnet entry to watch, not a mock.
    the fake-binary dry run confirms the invocation shape and parsing, not
    the real binary's behavior.
 5. **`stellar contract restore/read --key` assumed**, not executed.
-6. **GitHub-side Phase 10 items not done**: branch protection with required
-   checks, and the `gh`-generated issue backlog — both require repo access
-   outside this working tree.
+6. **GitHub-side Phase 10 items, partially blocked**: the `gh` issue backlog
+   is created (see the issues); **branch protection could not be configured**
+   from here — the token is refused for the branch-protection and
+   Actions secrets/variables APIs (HTTP 403), and required checks must be
+   set by the repo owner with an admin token.
 
 ## Recommendations
 
@@ -138,6 +146,20 @@ a real, decaying testnet entry to watch, not a mock.
    standalone network for demoing without the ~7-day wait.
 5. Configure branch protection + required checks (matching the two workflow
    job names) and generate the issue backlog via `gh`.
+
+## Completion-pass findings (2026-09-09)
+
+The verification run against the live network found and fixed real
+construction-time bugs: the contract could not compile (no production TTL
+getter in SDK 27 — `ttl()` removed, reads moved off-chain), the sentinel's
+`--keys` SCVal needed XDR padding, `stellar keys generate --as-secret`
+doesn't print the secret, and soroban-sdk 27 needs the `wasm32v1-none`
+target. The pipeline now deploys to testnet and scans real state (Healthy,
+120,847 ledgers at capture time), with the Critical/Archived/restore phases
+on the ~7-day real-time schedule. `cargo test` passes (5/5) and CI
+(`test-contract.yml`) is green. Gap 4 (Actions vars/secrets + manual
+triggers) and branch protection are blocked by the environment token's
+missing permissions and must be completed by the repo owner.
 
 ## Summary
 
