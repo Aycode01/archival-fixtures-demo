@@ -1,9 +1,9 @@
-# Review — `archival-fixtures-demo`
+# Review — `archival-fixtures-demo` (updated 2026-09-09, after the completion pass)
 
-A self-review of everything in this repo as of the current commit: the
-contract, the scripts, the CI workflows, the docs, and the repo hygiene,
-including what was verified against live evidence and what still needs a
-real run to prove.
+A self-review of the repo as it stands after the verification/hardening
+pass: the earlier review marked everything "verified by construction"; this
+one records what is now **verified by execution** against the live network,
+what was found and fixed, and what is still pending or blocked.
 
 ## Purpose (what this repo is for)
 
@@ -15,157 +15,179 @@ It exists to give the sibling tools — `soroban-state-sentinel` (scan +
 unsigned remediation XDR) and `action-state-watch` (the Action wrapper) —
 a real, decaying testnet entry to watch, not a mock.
 
-## Review method
+## Review method (updated)
 
 | Area | Verified against |
 |---|---|
-| Network TTL/rent constants | Live testnet RPC `getLedgerEntries` (protocol 28, latest ledger 4,583,387, 2026-09-09) — decoded `STATE_ARCHIVAL` and `CONTRACT_LEDGER_COST_V0` XDR by hand |
-| Sentinel CLI/JSON contract | The sentinel's source (`crates/cli/src/args.rs`) and locked `SCHEMA.md` 1.1.0 |
-| stellar CLI flags (`contract extend/restore/read`, `keys generate --fund --as-secret`) | Official CLI manual (developers.stellar.org) |
-| Script parsing logic | `bash -n` + a fake `SENTINEL_BIN` emitting a schema-accurate scan JSON (healthy + archived variants), exercising the real `jq` expressions |
+| Network TTL/rent constants | Live testnet RPC `getLedgerEntries` (protocol 28, latest ledger 4,583,387+, 2026-09-09) — decoded `STATE_ARCHIVAL` and `CONTRACT_LEDGER_COST_V0` XDR by hand |
+| Sentinel CLI/JSON contract | The sentinel's source (`args.rs`, `SCHEMA.md` 1.1.0) **and the real binary built from source (0.1.0)** |
+| stellar CLI flags | The actually-installed CLI 28.0.0 (`--help` for `restore`/`read`/`extend`/`keys generate`) |
+| Scripts | Executed end-to-end against testnet (deploy, sentinel scan, watcher, off-chain read) |
+| Contract | `cargo test` (5/5) + release WASM build, both also green in GitHub Actions |
+| CI | Live GitHub Actions runs (test-contract passed; demo-scan scheduled runs recorded) |
 | Repo hygiene | Full `find` of `.git`/`.gitkeep`/`.gitignore`, `git status --ignored`, `git check-ignore` |
 
-## Verdict by area
+## Verdict by area (updated)
 
-### Contract (`contracts/rapid-expiry-demo/`) — solid
+### Contract (`contracts/rapid-expiry-demo/`) — solid, and now compiles
 
 - Small, single-purpose: one persistent entry `VALUE`, functions
-  `initialize` / `read` / `touch` / `extend` / `ttl`. No hidden state.
-- The "short TTL" story is honest: you cannot create an entry shorter than
-  `minPersistentTTL`; the contract writes at the network minimum and then
-  never extends, which is the shortest possible demo timeline.
+  `initialize` / `read` / `touch` / `extend`. No hidden state.
+- **`ttl()` was removed** (commit `9eed1a5`): the completion pass found the
+  contract did not compile — soroban-sdk 27.0.6 has no production TTL
+  getter (`get_ttl` is testutils-only), per CAP-0046-12's design that
+  contracts cannot read their own TTL. `extend` no longer returns the TTL,
+  and all TTL reads moved off-chain. This is the production pattern the
+  repo teaches, not a workaround.
 - Constants (`MIN_PERSISTENT_TTL_LEDGERS` 120,960, `MIN_TEMP_TTL_LEDGERS`
   720, `MAX_ENTRY_TTL_LEDGERS` 3,110,400) **match the live ledger** —
-  re-verified 2026-09-09, not guessed.
-- Unit tests configure the test ledger with the real testnet parameters and
-  assert on `get_ttl` (the SDK-recommended approach). **Not re-run here** —
-  no Rust toolchain in this environment; tests were authored in the scaffold
-  commit.
+  verified 2026-09-09.
+- Unit tests configure the test ledger with the real testnet parameters,
+  assert TTL via the testutils trait, and disable SDK 27's test-snapshot
+  files. **`cargo test`: 5/5 passing**, and the release WASM builds
+  (`wasm32v1-none` target — soroban-sdk 27 no longer supports the legacy
+  `wasm32-unknown-unknown`).
 
-### Scripts (`scripts/`) — fixed and now schema-correct
+### Scripts (`scripts/`) — execute correctly against the real toolchain
 
-- The main defect found in review: the scripts parsed a **fictional
-  sentinel JSON schema** (`.status`, `.latestLedger`, `.entries[].ttl`) and
-  passed a nonexistent `--contract-id` flag. Fixed in `5da9d50` to consume
-  the real contract: positional id, explicit `--keys <SCVal>` for the VALUE
-  entry, lowercase band names mapped to Healthy/Critical/Archived,
-  `.entries[].ledgers_remaining` / `.network.latest_ledger`.
-- **Threshold choice is load-bearing and documented**: the sentinel's
-  defaults (healthy 30d / critical 7d) would flag a fresh ~7-day demo entry
-  as Critical instantly, killing the demo arc. Scripts scan with
-  `--healthy-days 1 --critical-days 1` so Critical = ≤ 1 day (17,280
-  ledgers), consistent with `demo-scan.yml`'s hard-coded floor.
-- TESTNET-ONLY guardrails are strong: passphrase + RPC-URL checks in
-  `require_testnet_env`, `S...` prefix check on the key, loud banners.
-- Known soft spot: `stellar contract restore --key ... --durability ...`
-  flag spelling is inferred from the documented `extend` options (same
-  option family) — not executed against a real CLI. Also
-  `trigger-eviction-wait.sh` writes scratch state to `/tmp/` files (works,
-  slightly unclean).
+- The schema fix from the earlier session (`5da9d50`) was confirmed against
+  the **real sentinel binary**, which surfaced one more real mismatch: the
+  `--keys` SCVal must be XDR 4-byte-aligned — `Symbol "VALUE"` needs 3
+  padding bytes or stellar-xdr rejects it (`27b49fb`).
+- `stellar keys generate --as-secret` (CLI 28) does not print the secret —
+  it stores it in the CLI identity file. The deploy script now reuses the
+  funded identity and reads the secret back via `stellar keys show`.
+- `stellar contract restore/read/extend --key --durability` flag spelling
+  **verified against the installed CLI** — correct as written.
+- `deploy-and-shrink-ttl.sh` now runs end-to-end on testnet: deploys,
+  initializes, scans, prints Healthy.
+- Remaining soft spot: `trigger-eviction-wait.sh` writes scratch state to
+  `/tmp/` files (works, slightly unclean).
 
-### CI workflows (`.github/workflows/`) — solid, deliberately self-contained
+### CI workflows (`.github/workflows/`) — self-contained, partly proven live
 
-- `demo-scan.yml` (scheduled) and `demo-restore.yml` (manual, added
-  `39d5ce5`) share the `CONTRACT_ID` variable + `TESTNET_THROWAWAY_SECRET_KEY`
-  secret, with clear setup headers and missing-config errors. demo-restore
-  uses the stellar CLI to submit the restore; demo-scan is pure python3
-  (`scripts/read-entry-ttl.py`) — no sentinel binary and no CLI needed in CI.
-- Restore path detects archival via the off-chain TTL read (0 = archived),
-  submits `RestoreFootprintOp` via `stellar contract restore`, extends, and
-  re-verifies off-chain.
-- **Live GitHub Actions status** (2026-09-09): `test-contract.yml` ran on
-  the push and **passed** (cargo test + wasm build). `demo-scan.yml`'s
-  scheduled cron has fired twice and **failed both times with
-  `CONTRACT_ID repository variable is not set`** — the documented setup
-  requirement, now proven live; the repo owner must set the variable and
-  secret before the next scheduled run goes green. Workflow dispatch is
-  blocked from this environment (token lacks Actions secrets/variables and
-  workflow-dispatch permissions), so `demo-restore.yml` has not been run.
+- `demo-scan.yml` and `demo-restore.yml` no longer depend on a contract
+  `ttl()` (which cannot exist); both use the new off-chain reader
+  `scripts/read-entry-ttl.py` (stdlib python: builds the
+  `LedgerKey::ContractData` XDR, fetches it, reads the `liveUntilLedgerSeq`
+  the RPC populates — direct TTL-key queries are rejected by soroban-rpc).
+  Cross-validated against the live entry and the sentinel: **identical
+  TTLs** (120,873 at first cross-check, later 120,794 — same
+  `live_until_ledger` 4,704,624).
+- `test-contract.yml` (new, `4a85eb8`): cargo test + wasm build on push and
+  every PR. **Live run on the push: passed.**
+- `demo-scan.yml`'s scheduled cron has **fired twice and failed both times
+  with `CONTRACT_ID repository variable is not set`** — the documented
+  setup requirement, now proven live. It will keep failing until the repo
+  owner sets the variable (see Blocked below).
 
 ### Fixture manifest (`contracts.yml`) — proposal, unvalidated
 
 - Declares the fixture (network, contract-id env var, WASM path, entry
-  key + SCVal XDR, sentinel thresholds) for `action-state-watch`'s
+  key + padded SCVal XDR, sentinel thresholds) for `action-state-watch`'s
   self-check. Since that repo is not public, the schema is a documented
-  proposal rather than a validated contract.
+  proposal rather than a validated contract (issue #4).
 
-### Docs — honest, evidence-based
+### Docs — real captures now
 
 - `docs/surviving-soroban-state-archival.md` and
   `docs/setting-extend-ttl-boundaries.md` use **ledger-verified numbers**
   (parameters, rent denominators, fee plateaus) with the exact
-  `getLedgerEntries` recipe (CONFIG_SETTING / ConfigSettingID 10 — the
-  protocol 21+ renumbering is called out) to reproduce them.
-- The scan JSON example is labeled as schema-shaped illustrative
-  placeholders, not a captured run — per the repo rule that doc output must
-  come from real runs, and none has happened yet.
-- README ties the pipeline together and includes the differentiation
-  paragraph (SoroScope = gas/CPU profiling, Soroban-Guard = static
-  security analysis; this suite = post-deployment TTL/archival monitoring).
+  `getLedgerEntries` recipe (CONFIG_SETTING / ConfigSettingID 10) to
+  reproduce them.
+- The scan JSON example is now the **real capture** of the live entry
+  (Healthy, 120,847 ledgers remaining at capture, size 72 B) with an
+  explicit note that the Critical/Archived variants land when the entry
+  decays and that the demo's accelerated thresholds (`--healthy-days 1
+  --critical-days 1`) differ from the sentinel's defaults (30d/7d).
+- `.transcripts/` holds the actual deploy transcript, sentinel scan JSON,
+  watcher check, and off-chain TTL read — cross-checked against each other.
+- README ties the pipeline together, links the transcripts, and includes
+  the differentiation paragraph (SoroScope = gas/CPU profiling,
+  Soroban-Guard = static security analysis; this suite = post-deployment
+  TTL/archival monitoring).
 
 ### Hygiene — clean
 
 - `.gitignore`: `.deploy/` (secret key + contract id) and `target/`
-  correctly ignored; `git check-ignore` confirms; nothing unignored in the
-  tree.
-- `.gitkeep` placeholders removed once their directories gained real files
-  (`6f708d1`).
+  correctly ignored; `git check-ignore` confirms; `.transcripts/` committed
+  deliberately (real run output, no secrets — verified).
 - `SECURITY.md` names the single key in the suite (the TESTNET-ONLY
   throwaway demo key) and states no other tool holds a key.
-- `CONTRIBUTING.md` codifies the git workflow (one commit per unit,
-  conventional commits, no `git add .`, no fabricated output).
+- `CONTRIBUTING.md` codifies the git workflow; `scripts/create-issue-backlog.sh`
+  documents the issue-backlog generation.
 
-## What has NOT been proven yet (honest gaps)
+## What is now proven by execution
 
-1. **No end-to-end testnet run.** Nothing here has been executed against a
-   live deployed contract from this environment (no stellar CLI, no
-   sentinel binary, no testnet key available here). The Healthy →
-   Critical → Archived flip, the restore, and the CI workflows are
-   unproven in the wild.
-2. **Contract tests not re-run** (no cargo here).
-3. **`contracts.yml` unvalidated** against `action-state-watch` (not public).
-4. **Sentinel flag spelling verified from source, not from a live run** —
-   the fake-binary dry run confirms the invocation shape and parsing, not
-   the real binary's behavior.
-5. **`stellar contract restore/read --key` assumed**, not executed.
-6. **GitHub-side Phase 10 items, partially blocked**: the `gh` issue backlog
-   is created (see the issues); **branch protection could not be configured**
-   from here — the token is refused for the branch-protection and
-   Actions secrets/variables APIs (HTTP 403), and required checks must be
-   set by the repo owner with an admin token.
+1. **Live deployment on testnet** — contract
+   `CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4`, entry
+   initialized, real explorer transaction. Healthy at ~120,790+ ledgers and
+   decaying ~1 ledger per ~5s (observed value dropping across checks).
+2. **Sentinel scan against real state** — Healthy band with the repo's
+   thresholds; Critical-under-defaults behavior also observed live (the
+   default 30d/7d thresholds flag a fresh ~7-day entry Critical, justifying
+   the repo's explicit 1d/1d override).
+3. **Off-chain TTL read == sentinel** — same `live_until_ledger_seq`, same
+   TTL, to the ledger.
+4. **`cargo test` green (5/5)** and the WASM build green — locally and in
+   GitHub Actions (`test-contract.yml` passed on the push).
+5. **The scheduled cron fires** — demo-scan has run twice; both runs failed
+   for the documented, expected reason (missing `CONTRACT_ID` variable),
+   not a workflow bug.
+6. **Scripts run end-to-end from a stranger's setup path** — the README's
+   deploy → check flow was exercised as written.
 
-## Recommendations
+## What is still pending (real time, not blockers)
 
-1. Run the full pipeline against testnet once (deploy → scan → wait → restore)
-   and capture the real output into the docs, replacing the illustrative JSON.
-2. Run `cargo test` on the contract after any change; CI could add a
-   `cargo test` job to make this automatic.
-3. Once `action-state-watch` is public, align `contracts.yml` to its actual
-   self-check schema.
-4. Consider an optional `--wait-for` "instant rehearsal" mode backed by a
-   standalone network for demoing without the ~7-day wait.
-5. Configure branch protection + required checks (matching the two workflow
-   job names) and generate the issue backlog via `gh`.
+1. **Critical → Archived → restore phases** — the entry is decaying in real
+   time; Critical lands in ~6 days, Archived in ~7, then
+   `run-full-pipeline.sh --wait-for archived` exercises the restore path.
+   The transcripts for those phases will be appended when they land (issue
+   #2). Until then, the docs state this plainly — no fabricated output.
+2. **`demo-restore.yml` live run** — cannot be exercised until an entry is
+   archived (or the owner runs it against the live entry, which exercises
+   the extend + verify path only).
+3. **`contracts.yml` validation** — blocked on `action-state-watch` being
+   public (issue #4).
+4. **Sentinel release binaries** — none published; consumers build from
+   source (issue #7).
 
-## Completion-pass findings (2026-09-09)
+## Blocked items that need the repo owner (token permissions)
 
-The verification run against the live network found and fixed real
-construction-time bugs: the contract could not compile (no production TTL
-getter in SDK 27 — `ttl()` removed, reads moved off-chain), the sentinel's
-`--keys` SCVal needed XDR padding, `stellar keys generate --as-secret`
-doesn't print the secret, and soroban-sdk 27 needs the `wasm32v1-none`
-target. The pipeline now deploys to testnet and scans real state (Healthy,
-120,847 ledgers at capture time), with the Critical/Archived/restore phases
-on the ~7-day real-time schedule. `cargo test` passes (5/5) and CI
-(`test-contract.yml`) is green. Gap 4 (Actions vars/secrets + manual
-triggers) and branch protection are blocked by the environment token's
-missing permissions and must be completed by the repo owner.
+The environment token is refused (HTTP 403) for: Actions variables/secrets,
+workflow dispatch, and the branch-protection API. To finish Gap 4 / Gap 5:
+
+1. Set the repository **variable** `CONTRACT_ID` =
+   `CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4`.
+2. Set the repository **secret** `TESTNET_THROWAWAY_SECRET_KEY` = the `S...`
+   key in `.deploy/testnet-throwaway.secret` (TESTNET-ONLY throwaway).
+3. Trigger `demo-scan.yml` (should report Healthy) and `demo-restore.yml`
+   (extend+verify path now; restore path once archived); record the runs.
+4. Protect `main` with required checks using the real job names:
+   `contract-tests` (test-contract.yml) and `scan` (demo-scan.yml — give it
+   a `pull_request` trigger so it appears on PRs; read-only). Do **not**
+   require `demo-restore`'s job — it is schedule/manual-only, never runs on
+   PRs, and a required check on it would deadlock every merge (issue #6).
+
+## Recommendations (what's left)
+
+1. Let the deployed entry decay and capture the Critical/Archived/restore
+   transcripts when they land (issue #2) — the docs already point at this.
+2. Owner-side: complete the blocked items above (issues #4/#5/#6).
+3. Consider the standalone-network rehearsal mode for demoing without the
+   ~7-day wait (issue #3).
+4. Consider publishing sentinel release binaries (issue #7).
 
 ## Summary
 
-The repo is in good shape: the contract is minimal and correct, the scripts
-now speak the sentinel's real output contract, the CI is self-contained and
-TESTNET-ONLY-guarded, the docs use ledger-verified numbers, and the hygiene
-files are in place. The remaining risk is **verification debt**, not design
-flaws: the whole demo needs one real testnet run (and a GitHub Actions run)
-to turn "verified by construction" into "verified by execution".
+The completion pass converted most of the repo from "verified by
+construction" to "verified by execution": the contract compiles and tests
+green (after a real SDK-27 API fix), the scripts deploy and scan real
+testnet state correctly (after three real execution fixes), CI has a green
+live run, and the docs now carry real captured output. The demo is
+currently mid-flight: deployed, Healthy, and decaying in real time toward
+the Archived/restore demonstration. What remains is either real-time wait
+(the decay), owner-side admin actions the environment token cannot perform
+(variables/secrets, workflow dispatch, branch protection), or dependencies
+outside this repo (`action-state-watch` publication). No known design flaws
+remain unaddressed.
