@@ -39,7 +39,14 @@ scripts/trigger-eviction-wait.sh   read-only TTL watcher (polls the sentinel)
 scripts/run-full-pipeline.sh       deploy -> decay -> remediate -> verify
 .github/workflows/demo-scan.yml    scheduled TTL scan (self-contained, uses
                                    the contract's own ttl())
+.github/workflows/demo-restore.yml manually-triggered restore (RestoreFootprintOp
+                                   via the TESTNET-ONLY throwaway key)
+contracts.yml                  fixture manifest consumed by action-state-watch's
+                               self-check workflow
 docs/surviving-soroban-state-archival.md   the deep dive
+docs/setting-extend-ttl-boundaries.md      how to choose extend_to / thresholds
+CONTRIBUTING.md               contributing guide (git workflow rules)
+SECURITY.md                   key-handling and disclosure policy
 ```
 
 ## Prerequisites
@@ -95,22 +102,22 @@ anything that signs or submits is `TESTNET_THROWAWAY_SECRET_KEY`.
 
 ## The demo timeline
 
-With current testnet network parameters (protocol 28, checked 2026-09-08) the
-minimum persistent TTL is **120,960 ledgers ≈ 7 days** at the ~5 s ledger
-cadence:
+With current testnet network parameters (protocol 28, verified 2026-09-09 via
+`getLedgerEntries` on the `STATE_ARCHIVAL` config setting) the minimum
+persistent TTL is **120,960 ledgers ≈ 7 days** at the ~5 s ledger cadence:
 
 | stage | when | entry TTL |
 |---|---|---|
 | deploy + `initialize()` | ledger L | 120,959 ledgers (~7 days) |
 | users keep transacting, nobody extends | each ledger | −1 ledger (~5 s each) |
-| sentinel flags Critical | ≈ L + ~110,000 | < ~1 day |
+| sentinel flags Critical | ≈ L + 103,680 | ≤ 1 day (17,280 ledgers) |
 | archived | ≈ L + 120,960 | 0 — reads/writes fail until restored |
 
 These numbers are set by network validators and can change — verify before
 trusting them (the contract and `docs/surviving-soroban-state-archival.md`
 show how to read them from the ledger).
 
-## CI: the scheduled scan
+## CI: the scheduled scan and the manual restore
 
 `.github/workflows/demo-scan.yml` runs every 6 hours (and on demand via
 workflow dispatch), reads the entry TTL through the contract's own `ttl()`
@@ -124,6 +131,13 @@ red. Setup:
    value in `.deploy/testnet-throwaway.secret`
 4. Trigger once with the "Run workflow" button, then let the cron take over
 
+`.github/workflows/demo-restore.yml` is the manual remediation half: run it
+from the Actions UI once the scan goes red. It detects whether the entry is
+archived, submits a `RestoreFootprintOp` (`stellar contract restore`) with
+the same TESTNET-ONLY throwaway key, extends the TTL back to a healthy value,
+and prints the post-restore TTL. No sentinel binary is needed in CI — both
+workflows are self-contained with the public stellar CLI.
+
 ## Faster rehearsal on a standalone network
 
 Waiting ~7 days on testnet is the honest demo, but for iterating on the
@@ -133,9 +147,24 @@ ledger time and the whole timeline can be compressed. The scripts are
 network-agnostic; only the TTL constants differ (set the standalone
 `minPersistentTTL` to a small value if you want a fast rehearsal).
 
+## How this differs from other Soroban tooling
+
+Other developer tooling in this space targets different phases of the
+contract lifecycle: **SoroScope** profiles gas/CPU cost during development
+and testing, and **Soroban-Guard** does static security analysis of contract
+code before deployment. This suite's distinct focus is the phase after
+deployment: continuous, RPC-based monitoring of TTL / state-archival risk on
+live entries, and the automated remediation (`ExtendFootprintTTLOp` /
+`RestoreFootprintOp`) that keeps persistent data alive once it is in
+production. If you need pre-merge footprint checks, those tools are
+complementary to (not a substitute for) watching what happens to a deployed
+contract's state over time.
+
 ## Further reading
 
 - [`docs/surviving-soroban-state-archival.md`](docs/surviving-soroban-state-archival.md) —
   how Soroban storage expiry works, the sentinel's health bands, and how to
   survive it in production
+- [`docs/setting-extend-ttl-boundaries.md`](docs/setting-extend-ttl-boundaries.md) —
+  how to choose `extend_to` / `threshold` boundaries and what extensions cost
 - Stellar docs: [State Archival](https://developers.stellar.org/docs/learn/fundamentals/contract-development/storage/state-archival)
