@@ -1,14 +1,35 @@
-# rapid-expiry-demo
+<p align="center">
+  <img src="assets/banner.svg" alt="archival-fixtures-demo" />
+</p>
+
+# archival-fixtures-demo
 
 A deliberately short-lived Soroban contract (plus the scripts around it) that
 makes **Soroban state archival** observable end-to-end on Stellar **testnet**:
 deploy a contract holding one persistent entry, watch its TTL decay over
 ~7 days, see the entry get archived, and restore it.
 
+<p align="center">
+  <a href="https://stellar.expert/explorer/testnet/contract/CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4">Live testnet contract</a> ·
+  <a href="docs-site/SUMMARY.md">Documentation</a> ·
+  <a href="https://discord.gg/pMwVZf8TX">Discord</a> ·
+  <a href="https://t.me/+RZKO3ffLffY0NDg0">Telegram</a>
+</p>
+
 > ⚠️ **TESTNET ONLY.** Everything in this repo signs, funds, and deploys with
 > TESTNET-ONLY throwaway keys and talks to the testnet RPC. Never set a
 > mainnet key or point `SOROBAN_RPC_URL` at mainnet. `scripts/lib.sh` enforces
 > this posture loudly and refuses to run otherwise.
+
+## Status at a glance
+
+| Surface | Current status |
+|---|---|
+| Live testnet entry | `CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4` (key `VALUE`, persistent) |
+| Health band | Healthy (~120,900 ledgers ≈ 7 days) — see `.transcripts/` for real captures |
+| Timeline | Deployed 2026-09-09 (ledger 4,583,709); Critical ≈ 6 days later, Archived ≈ 7 |
+| CI | `test-contract.yml` green on push; `demo-scan.yml` scheduled every 6 h (setup: `CONTRACT_ID` variable) |
+| Contract unit tests | 5/5 passing |
 
 ## The idea in one paragraph
 
@@ -44,13 +65,28 @@ scripts/read-entry-ttl.py          off-chain TTL read via getLedgerEntries
                                    off-chain read, fails red on decay)
 .github/workflows/demo-restore.yml manually-triggered restore (RestoreFootprintOp
                                    via the TESTNET-ONLY throwaway key)
+.github/workflows/test-contract.yml cargo test on push/PR
 contracts.yml                  fixture manifest consumed by action-state-watch's
                                self-check workflow
-docs/surviving-soroban-state-archival.md   the deep dive
-docs/setting-extend-ttl-boundaries.md      how to choose extend_to / thresholds
+docs/                          the deep dives (archival mechanics, TTL boundaries)
+docs-site/                     GitBook-style documentation site (SUMMARY.md)
+.transcripts/                  real terminal output from the live testnet run
 CONTRIBUTING.md               contributing guide (git workflow rules)
 SECURITY.md                   key-handling and disclosure policy
 ```
+
+## Documentation
+
+The GitBook-style site lives in [`docs-site/`](docs-site/SUMMARY.md) and walks
+through the demo end to end: the archival lifecycle, the economics of rent,
+deploying, watching decay, restoring, the contract reference, and the CI
+workflows. The longer reference reads are in [`docs/`](docs/):
+
+- [`docs/surviving-soroban-state-archival.md`](docs/surviving-soroban-state-archival.md) —
+  how Soroban storage expiry works, the sentinel's health bands, and how to
+  survive it in production
+- [`docs/setting-extend-ttl-boundaries.md`](docs/setting-extend-ttl-boundaries.md) —
+  how to choose `extend_to` / `threshold` boundaries and what extensions cost
 
 ## Prerequisites
 
@@ -183,11 +219,29 @@ production. If you need pre-merge footprint checks, those tools are
 complementary to (not a substitute for) watching what happens to a deployed
 contract's state over time.
 
-## Further reading
+## Maintainers
 
-- [`docs/surviving-soroban-state-archival.md`](docs/surviving-soroban-state-archival.md) —
-  how Soroban storage expiry works, the sentinel's health bands, and how to
-  survive it in production
-- [`docs/setting-extend-ttl-boundaries.md`](docs/setting-extend-ttl-boundaries.md) —
-  how to choose `extend_to` / `threshold` boundaries and what extensions cost
-- Stellar docs: [State Archival](https://developers.stellar.org/docs/learn/fundamentals/contract-development/storage/state-archival)
+<table align="center">
+<tr>
+<td align="center">
+<strong>Aycode01</strong> — maintainer
+<br />
+<a href="https://github.com/Aycode01">github.com/Aycode01</a>
+</td>
+</tr>
+</table>
+
+## Community
+
+- [Discord](https://discord.gg/pMwVZf8TX)
+- [Telegram](https://t.me/+RZKO3ffLffY0NDg0)
+
+## Contributors
+
+This repository currently has a single maintainer and no outside
+contributors yet — the contributor credits section will be added once
+there are real contributors to credit.
+
+## License
+
+[MIT](LICENSE)
