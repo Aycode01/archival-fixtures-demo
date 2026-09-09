@@ -29,11 +29,11 @@ fixtures:
     # Set to the deployed contract id: repository variable CONTRACT_ID,
     # or local file .deploy/contract-id.txt.
     contract_id_env: CONTRACT_ID
-    wasm: contracts/rapid-expiry-demo/target/wasm32-unknown-unknown/release/rapid_expiry_demo.wasm
+    wasm: contracts/rapid-expiry-demo/target/wasm32v1-none/release/rapid_expiry_demo.wasm
     deploy_script: scripts/deploy-and-shrink-ttl.sh
     entries:
       - key: VALUE
-        key_scval_xdr: "AAAADwAAAAVWQUxVRQ==" # Symbol "VALUE"
+        key_scval_xdr: "AAAADwAAAAVWQUxVRQAAAA==" # Symbol "VALUE" (XDR 4-byte padded)
         durability: persistent
         min_persistent_ttl_ledgers: 120960
     scan:

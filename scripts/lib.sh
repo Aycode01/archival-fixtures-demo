@@ -30,7 +30,7 @@ set -euo pipefail
 : "${STELLAR_CLI_BIN:=stellar}"
 : "${SENTINEL_BIN:=soroban-state-sentinel}"
 : "${TESTNET_THROWAWAY_SECRET_KEY:=}"
-: "${RAPID_EXPIRY_WASM:=contracts/rapid-expiry-demo/target/wasm32-unknown-unknown/release/rapid_expiry_demo.wasm}"
+: "${RAPID_EXPIRY_WASM:=contracts/rapid-expiry-demo/target/wasm32v1-none/release/rapid_expiry_demo.wasm}"
 : "${CONTRACT_ID_FILE:=.deploy/contract-id.txt}"
 : "${LEDGER_SECONDS:=5}"
 
@@ -40,11 +40,19 @@ DEPLOY_DIR="$REPO_ROOT/.deploy"
 # The single persistent entry key used by the demo contract.
 DEMO_ENTRY_KEY="VALUE"
 
+# stellar-cli identity alias for the TESTNET-ONLY throwaway key. `keys
+# generate --as-secret` stores the key under this alias (it does not print
+# the secret; scripts read it back with `stellar keys show`).
+THROWAWAY_ALIAS="testnet-demo-throwaway"
+
 # The same key as a base64-XDR SCVal (Symbol "VALUE"), which is what
 # soroban-state-sentinel expects in its --keys flag. Derived from the XDR
-# encoding of SCV_SYMBOL (15) + length 5 + "VALUE":
-#   python3 -c "import struct,base64; print(base64.b64encode(struct.pack('>II',15,5)+b'VALUE').decode())"
-DEMO_ENTRY_SCVAL_XDR="AAAADwAAAAVWQUxVRQ=="
+# encoding of SCV_SYMBOL (15) + length 5 + "VALUE" + 3 zero padding bytes:
+# XDR strings are padded to 4-byte alignment and the sentinel's reader
+# (stellar-xdr) enforces that strictly — an unpadded symbol fails with
+# "failed to fill whole buffer".
+#   python3 -c "import struct,base64; print(base64.b64encode(struct.pack('>II',15,5)+b'VALUE'+b'\x00'*3).decode())"
+DEMO_ENTRY_SCVAL_XDR="AAAADwAAAAVWQUxVRQAAAA=="
 
 # Mirror of the contract's MIN_PERSISTENT_TTL_LEDGERS
 # (contracts/rapid-expiry-demo/src/lib.rs): the testnet network minimum for a
@@ -111,9 +119,11 @@ require_testnet_key() {
         die "TESTNET_THROWAWAY_SECRET_KEY is not set. It must be a TESTNET-ONLY throwaway key funded \
 with testnet lumens (never a mainnet key). Generate one with:
 
-    stellar keys generate testnet-demo --as-secret --fund --rpc-url $SOROBAN_RPC_URL
+    stellar keys generate $THROWAWAY_ALIAS --as-secret --fund --rpc-url $SOROBAN_RPC_URL
+    stellar keys show $THROWAWAY_ALIAS
 
-then export the printed S... secret key as TESTNET_THROWAWAY_SECRET_KEY. See README.md."
+then export the printed S... secret key as TESTNET_THROWAWAY_SECRET_KEY, or just run \
+scripts/deploy-and-shrink-ttl.sh which does all of this for you. See README.md."
     fi
     if [[ "$TESTNET_THROWAWAY_SECRET_KEY" != S* ]]; then
         die "TESTNET_THROWAWAY_SECRET_KEY does not look like a Stellar secret key (S...). \

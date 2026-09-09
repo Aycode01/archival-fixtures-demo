@@ -59,12 +59,12 @@ info "passphrase: $SOROBAN_NETWORK_PASSPHRASE"
 if [[ ! -f "$RAPID_EXPIRY_WASM" ]]; then
     if ! command -v cargo >/dev/null 2>&1; then
         die "contract WASM not found at $RAPID_EXPIRY_WASM and cargo is not installed. \
-Install Rust (https://rustup.rs) with the wasm32 target:  rustup target add wasm32-unknown-unknown"
+Install Rust (https://rustup.rs) with the wasm32v1-none target:  rustup target add wasm32v1-none"
     fi
     info "building contract WASM (first build downloads soroban-sdk, this can take a few minutes)..."
     cargo build \
         --manifest-path "$REPO_ROOT/contracts/rapid-expiry-demo/Cargo.toml" \
-        --target wasm32-unknown-unknown \
+        --target wasm32v1-none \
         --release
 fi
 [[ -f "$RAPID_EXPIRY_WASM" ]] || die "WASM not found after build at $RAPID_EXPIRY_WASM"
@@ -82,20 +82,32 @@ if [[ -z "$TESTNET_THROWAWAY_SECRET_KEY" && -f "$DEPLOY_DIR/testnet-throwaway.se
     info "reusing TESTNET-ONLY throwaway key from $DEPLOY_DIR/testnet-throwaway.secret"
 fi
 if [[ -z "$TESTNET_THROWAWAY_SECRET_KEY" ]]; then
-    info "TESTNET_THROWAWAY_SECRET_KEY not set — generating a fresh TESTNET-ONLY throwaway key and funding it with testnet lumens..."
-    GEN_OUT="$("$STELLAR_CLI_BIN" keys generate testnet-demo-throwaway \
-        --as-secret --fund \
-        --rpc-url "$SOROBAN_RPC_URL" \
-        --network-passphrase "$SOROBAN_NETWORK_PASSPHRASE" 2>&1)"
-    SECRET="$(grep -oE 'S[A-Z2-7]{55}' <<<"$GEN_OUT" | head -n1 || true)"
+    # With stellar-cli 28, `keys generate --as-secret` does NOT print the
+    # secret: it stores it in the CLI identity file (~/.config/stellar/identity/)
+    # and prints a confirmation. Reuse the identity if it exists (a previous
+    # run already generated + friendbot-funded it), otherwise create it, then
+    # read the secret back with `keys show`.
+    if "$STELLAR_CLI_BIN" keys show "$THROWAWAY_ALIAS" >/dev/null 2>&1; then
+        info "reusing TESTNET-ONLY throwaway CLI identity '$THROWAWAY_ALIAS' (already generated and funded)"
+    else
+        info "TESTNET_THROWAWAY_SECRET_KEY not set — generating a fresh TESTNET-ONLY throwaway key and funding it with testnet lumens..."
+        GEN_OUT="$("$STELLAR_CLI_BIN" keys generate "$THROWAWAY_ALIAS" \
+            --as-secret --fund \
+            --rpc-url "$SOROBAN_RPC_URL" \
+            --network-passphrase "$SOROBAN_NETWORK_PASSPHRASE" 2>&1)"
+        if [[ $? -ne 0 ]]; then
+            die "stellar keys generate failed: $GEN_OUT"
+        fi
+    fi
+    SECRET="$("$STELLAR_CLI_BIN" keys show "$THROWAWAY_ALIAS" | grep -oE 'S[A-Z2-7]{55}' | head -n1 || true)"
     if [[ -z "$SECRET" ]]; then
-        die "could not extract a generated secret key from 'stellar keys generate' output: $GEN_OUT"
+        die "could not read the generated secret key via 'stellar keys show $THROWAWAY_ALIAS'"
     fi
     mkdir -p "$DEPLOY_DIR"
     printf '%s\n' "$SECRET" > "$DEPLOY_DIR/testnet-throwaway.secret"
     chmod 600 "$DEPLOY_DIR/testnet-throwaway.secret"
     TESTNET_THROWAWAY_SECRET_KEY="$SECRET"
-    ok "generated and funded TESTNET-ONLY throwaway key (saved to .deploy/testnet-throwaway.secret, gitignored)."
+    ok "TESTNET-ONLY throwaway key ready (saved to .deploy/testnet-throwaway.secret, gitignored)."
     warn "it holds only TESTNET lumens and can be discarded anytime — treat it as disposable."
 else
     require_testnet_key

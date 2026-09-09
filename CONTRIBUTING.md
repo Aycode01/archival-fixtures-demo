@@ -23,7 +23,7 @@ refused loudly. Never:
 
 ```bash
 # contract tests (needs Rust + wasm32 target)
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 cargo test --manifest-path contracts/rapid-expiry-demo/Cargo.toml
 
 # tooling the scripts need
