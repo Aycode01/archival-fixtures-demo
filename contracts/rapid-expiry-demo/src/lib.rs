@@ -33,6 +33,18 @@
 //!
 //! Verify the current network parameters before trusting these numbers — they
 //! are set by validators and can change. See `docs/surviving-soroban-state-archival.md`.
+//!
+//! ## Why there is no `ttl()` function
+//!
+//! The protocol deliberately gives contracts **no way to read an entry's own
+//! TTL** (CAP-0046-12: "there is no way for smart contracts to determine the
+//! current TTL of an entry"; the soroban-sdk 27 `get_ttl` helpers exist only
+//! behind the `testutils` feature, for tests). TTL monitoring is therefore an
+//! **off-chain** job: `soroban-state-sentinel scan` and the repo's CI read the
+//! TTL ledger entry via `getLedgerEntries` (see `scripts/read-entry-ttl.py`),
+//! without invoking this contract. That is the production pattern this demo is
+//! meant to teach — if your contract *needs* to know its TTL, you are fighting
+//! the protocol design, and you should watch it from outside instead.
 
 use soroban_sdk::{contract, contractimpl, symbol_short, Env, Symbol};
 
@@ -107,22 +119,15 @@ impl RapidExpiryDemo {
     /// raised to `extend_to`; otherwise the call is a no-op. Passing the same
     /// value for both means "ensure the TTL is at least `ledgers`".
     ///
-    /// Returns the new TTL in ledgers. This is the remediation path that
-    /// `soroban-state-sentinel restore` and `action-state-watch` automate
-    /// against the *other* side of the pipeline (`ExtendFootprintTTLOp` /
-    /// `RestoreFootprintOp`).
-    pub fn extend(env: Env, ledgers: u32) -> u32 {
+    /// This is the remediation path that `soroban-state-sentinel extend` /
+    /// `action-state-watch` automate against the *other* side of the pipeline
+    /// (`ExtendFootprintTTLOp` / `RestoreFootprintOp`). It returns nothing —
+    /// the resulting TTL is read off-chain via `getLedgerEntries` (see the
+    /// module docs for why the contract cannot read its own TTL).
+    pub fn extend(env: Env, ledgers: u32) {
         env.storage()
             .persistent()
             .extend_ttl(&VALUE_KEY, ledgers, ledgers);
-        env.storage().persistent().get_ttl(&VALUE_KEY)
-    }
-
-    /// Current TTL of the entry, in ledgers, from the current ledger.
-    /// Convenience for scripts and health checks; the sentinel reads the same
-    /// value off-chain from `getLedgerEntries` without invoking this contract.
-    pub fn ttl(env: Env) -> u32 {
-        env.storage().persistent().get_ttl(&VALUE_KEY)
     }
 }
 

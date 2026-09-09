@@ -1,1 +1,5 @@
 /target
+
+# SDK 27 test snapshots (capture_snapshot_at_drop defaults to true; the
+# tests disable it, this is belt-and-braces).
+/test_snapshots
