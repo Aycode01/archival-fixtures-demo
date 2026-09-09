@@ -40,15 +40,19 @@ ttl = liveUntilLedger - currentLedger
 ```
 
 Network parameters live in the ledger itself, under the
-`CONFIG_SETTING` / `STATE_ARCHIVAL` key, and are set by validators — they can
-change with a protocol upgrade, so *verify, don't memorize*. On testnet as of
-**2026-09-08 (protocol 28)** they read:
+`CONFIG_SETTING` / `STATE_ARCHIVAL` config setting, and are set by validators
+— they can change with a protocol upgrade, so *verify, don't memorize*.
+On testnet as of **2026-09-09 (protocol 28, latest ledger 4,583,387)** they
+read (fetched via RPC `getLedgerEntries`; see the verification recipe at the
+bottom of this page):
 
 | Parameter | Value | Meaning |
 |---|---|---|
 | `minPersistentTTL` | 120,960 ledgers | ≈ 7 days at ~5 s/ledger; a new/restored persistent entry starts here |
 | `minTemporaryTTL` | 720 ledgers | ≈ 1 hour; temporary entries start here |
 | `maxEntryTTL` | 3,110,400 ledgers | ≈ 180 days; the ceiling for extensions |
+| `persistentRentRateDenominator` | 1,215 | persistent rent divisor (see `docs/setting-extend-ttl-boundaries.md`) |
+| `tempRentRateDenominator` | 2,430 | temporary rent divisor (temporary entries are cheaper) |
 
 The demo contract hard-codes these as documentation constants
 (`MIN_PERSISTENT_TTL_LEDGERS`, `MIN_TEMP_TTL_LEDGERS`, `MAX_ENTRY_TTL_LEDGERS`)
@@ -74,27 +78,63 @@ The demo contract exposes both remediation paths the scripts can drive:
 ## Watching the decay: the sentinel and its bands
 
 `soroban-state-sentinel` scans a contract off-chain via `getLedgerEntries` —
-no invocation, no fees — and classifies each entry into a health band:
+no invocation, no fees — and classifies each entry into a health band. The
+band names are part of its locked output contract (SCHEMA.md 1.1.0):
 
-| Band | Meaning | TTL heuristic used here |
+| Band | Meaning | Demo mapping |
 |---|---|---|
-| **Healthy** | plenty of runway | TTL above the Critical floor |
-| **Critical** | the next extension/restore window is at risk | TTL ≤ ~1 day (17,280 ledgers) |
-| **Archived** | the entry is gone; reads/writes fail until restored | TTL ≤ 0 |
+| `healthy` | plenty of runway | > 1 day of TTL left |
+| `expiring_soon` | between the healthy and critical bounds | *(not used — see below)* |
+| `critical` | the next extension/restore window is at risk | TTL ≤ 1 day (17,280 ledgers) |
+| `archived` | the entry is gone; reads/writes fail until restored | TTL ≤ 0 (`ledgers_remaining` is null) |
 
-Its `scan` output (the schema this repo's scripts consume) looks like:
+The sentinel's *default* thresholds (`--healthy-days 30 --critical-days 7`)
+would flag a freshly deployed demo entry — which starts at the ~7-day network
+minimum — as Critical immediately, so the repo's scripts scan with
+`--healthy-days 1 --critical-days 1`. That collapses the `expiring_soon`
+band to nothing and makes the Healthy → Critical → Archived arc observable:
+a fresh entry (~7 days) is `healthy`, it flips to `critical` at ≤ 1 day, and
+archives at 0. The same 17,280-ledger (~1 day) floor is hard-coded in
+`.github/workflows/demo-scan.yml`, which reads the TTL through the contract's
+own `ttl()` function instead of the sentinel binary.
+
+Its `scan --json` document (schema 1.1.0; field names as defined in the
+sentinel's SCHEMA.md — values below are illustrative placeholders, not a
+captured run; run the script for live numbers) looks like:
 
 ```json
 {
-  "status": "Healthy",
-  "latestLedger": 1234567,
-  "entries": [{ "key": "VALUE", "ttl": 120959, "liveUntilLedger": 1355526 }],
-  "scannedAt": "2026-09-08T..."
+  "schema_version": "1.1.0",
+  "network": {
+    "passphrase": "Test SDF Network ; September 2015",
+    "protocol_version": 28,
+    "latest_ledger": 4583387,
+    "min_persistent_ttl": 120960
+  },
+  "summary": { "entries_scanned": 3, "critical": 1, "archived": 0, "has_critical": true },
+  "entries": [
+    {
+      "id": "key.0",
+      "kind": "contract_data",
+      "durability": "persistent",
+      "band": "critical",
+      "live_until_ledger_seq": 4586000,
+      "ledgers_remaining": 2652,
+      "days_remaining": 0,
+      "size_bytes": 100,
+      "extend_to_healthy_cost_stroops": 8042,
+      "restore_cost_stroops": null
+    }
+  ]
 }
 ```
 
-`scripts/trigger-eviction-wait.sh` polls that scan on an interval and prints a
-progress line per poll; `scripts/run-full-pipeline.sh` automates the whole
+The scripts in this repo parse exactly this document:
+`scripts/lib.sh` maps the VALUE entry's `band` to the friendly names the
+rest of the repo uses (Healthy / Critical / Archived) and reads
+`ledgers_remaining` (null ⇒ archived ⇒ 0) and `network.latest_ledger`.
+`scripts/trigger-eviction-wait.sh` polls that scan on an interval and prints
+a progress line per poll; `scripts/run-full-pipeline.sh` automates the whole
 cycle.
 
 ## The demo, walked through
@@ -161,18 +201,31 @@ where you control ledger time and can set a small `minPersistentTTL`
 
 ## Verifying the network parameters yourself
 
-The constants in this repo were read from the ledger, not guessed:
+The constants in this repo were read from the ledger, not guessed. Here is
+the exact recipe, against the testnet RPC (replace the URL for other
+networks):
 
 ```bash
-# protocol 28+ exposes them under the STATE_ARCHIVAL config setting
-stellar contract read \
-  --id <CONFIG_SETTING contract id> \
-  --key '{"tag":"LedgerKeyContractData",...}' \
-  ...
+# 1. LedgerKey for CONFIG_SETTING / STATE_ARCHIVAL.
+#    CONFIG_SETTING = 8, and on protocol 21+ the StateArchival settings live
+#    at ConfigSettingID 10 (the original CAP-0046-12 numbering had it at 7;
+#    the enum was reordered). Key XDR = u32 8 + i32 10:
+KEY="$(python3 -c "import struct,base64; print(base64.b64encode(struct.pack('>Ii',8,10)).decode())")"
+# AAAACAAAAAo=
+
+# 2. Fetch the entry and decode StateArchivalSettings (u32 maxEntryTTL,
+#    u32 minTemporaryTTL, u32 minPersistentTTL, i64 persistentRentRateDenominator,
+#    i64 tempRentRateDenominator, then u32s for the eviction scan knobs).
+curl -sS -X POST https://soroban-testnet.stellar.org \
+  -H 'Content-Type: application/json' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getLedgerEntries\",\"params\":{\"keys\":[\"$KEY\"]}}"
 ```
 
-or via RPC `getLedgerEntries` on the `CONFIG_SETTING` / `STATE_ARCHIVAL` key —
-the exact XDR is in the Soroban protocol docs. If the numbers differ from the
-table above, the network parameters changed: update `MIN_PERSISTENT_TTL_LEDGERS`
-(and friends) in the contract, the `LEDGER_SECONDS` default in `scripts/lib.sh`,
-and the timeline tables in the README and here.
+The same trick works for the rent fees: `CONTRACT_LEDGER_COST_V0` is
+`ConfigSettingID` 2, and its `rentFee1KBSorobanStateSizeLow/High` and
+`sorobanStateTargetSizeBytes` fields drive the current `fee_per_rent_1kb`
+(see `docs/setting-extend-ttl-boundaries.md` for the worked numbers and the
+formula). If the numbers differ from the tables above, the network
+parameters changed: update `MIN_PERSISTENT_TTL_LEDGERS` (and friends) in the
+contract, the `LEDGER_SECONDS` default in `scripts/lib.sh`, and the timeline
+tables in the README and here.

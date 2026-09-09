@@ -20,8 +20,8 @@
 //! there is no way for a contract to create a persistent entry with a shorter
 //! TTL than the network allows.
 //!
-//! On testnet (protocol 28, checked 2026-09-08 via `getLedgerEntries` on the
-//! `CONFIG_SETTING` / `STATE_ARCHIVAL` ledger key) that minimum is
+//! On testnet (protocol 28, verified 2026-09-09 via `getLedgerEntries` on the
+//! `CONFIG_SETTING` / `STATE_ARCHIVAL` config setting) that minimum is
 //! **120,960 ledgers ≈ 7 days** at the ~5 s ledger cadence. We deliberately
 //! write our entry and then never touch its TTL, so the demo timeline is:
 //!
@@ -40,7 +40,7 @@ use soroban_sdk::{contract, contractimpl, symbol_short, Env, Symbol};
 pub(crate) const VALUE_KEY: Symbol = symbol_short!("VALUE");
 
 /// Testnet `minPersistentTTL` (a network parameter), in ledgers, as of
-/// 2026-09-08 (protocol 28). New persistent entries are created at this TTL,
+/// 2026-09-09 (protocol 28). New persistent entries are created at this TTL,
 /// and restored entries come back at it too. 120,960 ledgers ≈ 7 days at the
 /// ~5 s testnet ledger cadence.
 ///
@@ -49,12 +49,12 @@ pub(crate) const VALUE_KEY: Symbol = symbol_short!("VALUE");
 pub const MIN_PERSISTENT_TTL_LEDGERS: u32 = 120_960;
 
 /// Testnet `minTemporaryTTL` (a network parameter), in ledgers, as of
-/// 2026-09-08. Included for reference only: this contract uses persistent
+/// 2026-09-09. Included for reference only: this contract uses persistent
 /// storage (temporary entries are deleted, never archived, so they cannot be
 /// restored and do not exercise the restore path this demo exists to prove).
 pub const MIN_TEMP_TTL_LEDGERS: u32 = 720;
 
-/// Testnet `maxEntryTTL` (a network parameter), in ledgers, as of 2026-09-08.
+/// Testnet `maxEntryTTL` (a network parameter), in ledgers, as of 2026-09-09.
 /// An entry's TTL can be extended up to `current_ledger + maxEntryTTL`.
 pub const MAX_ENTRY_TTL_LEDGERS: u32 = 3_110_400;
 

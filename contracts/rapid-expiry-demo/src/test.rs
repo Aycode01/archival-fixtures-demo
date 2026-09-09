@@ -6,7 +6,7 @@
 //! ([`soroban-examples/ttl`](https://github.com/stellar/soroban-examples/tree/master/ttl))
 //! and the ["Test TTL Extensions"](https://developers.stellar.org/docs/build/guides/archival/test-ttl-extension)
 //! guide: we configure the test ledger with the **real testnet network
-//! parameters** (checked 2026-09-08, protocol 28) so the tests exercise
+//! parameters** (verified 2026-09-09, protocol 28) so the tests exercise
 //! production-like TTL values, and we assert on `get_ttl` — the recommended
 //! way to verify TTL behavior in the SDK.
 
@@ -17,8 +17,8 @@ use soroban_sdk::{Address, Env};
 extern crate std;
 
 /// Test environment mirroring current testnet network parameters
-/// (protocol 28, checked 2026-09-08 via `getLedgerEntries` on the
-/// `CONFIG_SETTING`/`STATE_ARCHIVAL` ledger key).
+/// (protocol 28, verified 2026-09-09 via `getLedgerEntries` on the
+/// `CONFIG_SETTING`/`STATE_ARCHIVAL` config setting).
 fn create_env() -> Env {
     let env = Env::default();
     env.ledger().with_mut(|li| {
