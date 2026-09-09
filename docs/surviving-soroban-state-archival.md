@@ -101,8 +101,9 @@ binary — contracts cannot read their own TTL, so monitoring is off-chain by
 design.
 
 Its `scan --json` document (schema 1.1.0; field names as defined in the
-sentinel's SCHEMA.md — values below are illustrative placeholders, not a
-captured run; run the script for live numbers) looks like:
+sentinel's SCHEMA.md) — here is the **real capture** of the demo entry
+from the live testnet deployment (`CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4`,
+2026-09-09, Healthy band; see `.transcripts/02-scan-healthy.json`):
 
 ```json
 {
@@ -110,26 +111,35 @@ captured run; run the script for live numbers) looks like:
   "network": {
     "passphrase": "Test SDF Network ; September 2015",
     "protocol_version": 28,
-    "latest_ledger": 4583387,
+    "latest_ledger": 4583777,
     "min_persistent_ttl": 120960
   },
-  "summary": { "entries_scanned": 3, "critical": 1, "archived": 0, "has_critical": true },
+  "health_config": { "healthy_min_days": 1, "critical_max_days": 1 },
+  "summary": { "entries_scanned": 3, "healthy": 3, "critical": 0, "archived": 0, "has_critical": false },
   "entries": [
     {
       "id": "key.0",
       "kind": "contract_data",
       "durability": "persistent",
-      "band": "critical",
-      "live_until_ledger_seq": 4586000,
-      "ledgers_remaining": 2652,
-      "days_remaining": 0,
-      "size_bytes": 100,
-      "extend_to_healthy_cost_stroops": 8042,
+      "band": "healthy",
+      "live_until_ledger_seq": 4704624,
+      "ledgers_remaining": 120847,
+      "days_remaining": 6,
+      "size_bytes": 72,
+      "extend_to_healthy_cost_stroops": 0,
       "restore_cost_stroops": null
     }
   ]
 }
 ```
+
+> The Critical and Archived variants of this example will replace the
+> Healthy one here as the deployed entry decays (≈ 6 days to Critical, ≈ 7
+> to Archived) — the repo's rule is that doc output comes from real runs,
+> and those runs are in progress. **This demo's timeline uses accelerated
+> thresholds (`--healthy-days 1 --critical-days 1`) for a practical demo
+> window; the sentinel's real default thresholds (30d / 7d) are different**
+> — don't mistake the demo's fast timeline for the tool's default behavior.
 
 The scripts in this repo parse exactly this document:
 `scripts/lib.sh` maps the VALUE entry's `band` to the friendly names the
