@@ -9,6 +9,9 @@ makes **Soroban state archival** observable end-to-end on Stellar **testnet**:
 deploy a contract holding one persistent entry, watch its TTL decay over
 ~7 days, see the entry get archived, and restore it.
 
+[![CI](https://github.com/Aycode01/archival-fixtures-demo/actions/workflows/test-contract.yml/badge.svg)](https://github.com/Aycode01/archival-fixtures-demo/actions/workflows/test-contract.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 <p align="center">
   <a href="https://stellar.expert/explorer/testnet/contract/CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4">Live testnet contract</a> ·
   <a href="docs-site/SUMMARY.md">Documentation</a> ·
