@@ -1,16 +1,20 @@
-# Review — `archival-fixtures-demo` (updated 2026-09-14: closeout pass + submission pass)
+# Review — `archival-fixtures-demo` (updated 2026-09-14: closeout, submission and readiness passes)
 
 A self-review of the repo as it stands after the verification/hardening
 pass: the earlier review marked everything "verified by construction"; this
 one records what is now **verified by execution** against the live network,
 what was found and fixed, and what is still pending or blocked.
 
-## Closeout + submission passes (2026-09-14)
+## 2026-09-14 passes (closeout · submission · readiness)
 
-Two passes ran on this date. The first was scoped to close issues #3–#7 and land
-PR #9; re-checking found all of that already done (#3–#7 closed, PRs #9 and #10
-merged) except issue #2, so it became a verification pass plus one real fix. The
-second did the remaining actionable item and produced the submission materials.
+Three passes ran on this date. The first was scoped to close issues #3–#7 and
+land PR #9; re-checking found all of that already done (#3–#7 closed, PRs #9 and
+#10 merged) except issue #2, so it became a verification pass plus one real fix.
+The second did the remaining actionable item and wrote the submission materials.
+The third — this one — finally ran the submission-readiness step that had never
+actually been executed: it researched the **program itself** rather than the
+code, resolved the eligibility question against the program's published rules,
+and repaired the demo recording script.
 
 > **Process note.** The first pass's update to this file was committed
 > (`ad8360b`) and pushed to its fork branch, but PR #11 was opened and merged
@@ -91,6 +95,87 @@ token limits below — it could not be posted.
 issues**, so the release-binaries need is tracked nowhere. Consumers still build
 the sentinel from source.
 
+### Submission readiness: the program has no active Wave
+
+The submission-readiness step had never been run in this repo's history, so this
+pass researched the program rather than the code. Three findings change how the
+submission should be framed.
+
+**1. There is no active or upcoming Wave.** The program page says it directly:
+"There are no active or upcoming Waves at the moment." Eight Waves have run,
+roughly monthly, from 2026-01-21 through **Wave 8, 2026-08-24 → 08-31**. Program
+totals on the same page: **737 approved repos, 442 orgs, 251,739 issues**. Repo
+applications can be filed at any time and are reviewed independently of the Wave
+schedule, but issues are only actionable by contributors *during an active Wave*
+— so the practical deadline is "before the next Wave is announced", not now.
+
+**2. Eligibility is discretionary, not rule-bound.** This resolves the flag
+`docs/submission-drafts.md` had been carrying as deliberately unresolved. The
+program's Terms set **no criteria on repository type** — §4's eligibility
+requirements are entirely about the *participant* (age, sanctions, jurisdiction,
+KYC). Repository admission is §3.1: *"The Association and the Wave Program
+Organizer retain sole discretion to select which repositories are admitted."* So
+no published rule excludes a fixture/demo repo, and none states it qualifies
+either. Precedent observed directly in the live approved list:
+**`wraith-protocol/demo` is approved**, tagged, and carrying open issues. One
+sub-question remains a policy call only the organizers can answer — whether a
+*supporting* fixture repo counts toward the submission's repo list.
+
+**3. No funding-priority list is published.** Searched the docs, the Drips blog
+and the program page. There is therefore no priority drift to report; the absence
+is recorded rather than filled in with invented priorities. What *is* published:
+$75,000 per Wave for Waves 4–8 ($60,000 for 1–3), per-repository points budgets
+since Wave 4, and 2x/4x point multipliers on approved repos.
+
+**White-space re-check.** The strongest result is not a competitor but a
+validation. `stellar/js-stellar-sdk` is already planning this capability: epic
+[#1625](https://github.com/stellar/js-stellar-sdk/issues/1625) ("Soroban
+Contract Operations", opened 2026-08-10, milestone Q3) contains
+[#1600](https://github.com/stellar/js-stellar-sdk/issues/1600) "TTL toolkit for
+proactive state archival management", whose own text reads *"Nothing helps you
+keep state alive on purpose, so every production dapp writes its own keeper from
+scratch."* It is unstarted (`0 / 4` sub-issues) and SDK-side — for developers
+extending TTL from inside their own app — whereas the sentinel watches deployed
+contracts the operator does not control. That is real overlap and is stated
+rather than omitted. `Stellar-Cost-Labs/soroban-cost-estimator` is adjacent but
+mechanically different (per-invocation `simulateTransaction` and pricing-config
+snapshots vs. per-entry TTL scanning). No approved repo was found whose primary
+purpose is proactive TTL monitoring — a "nothing found", bounded by the caveat
+that the approved list cannot be enumerated unauthenticated.
+
+**Approval status is not confirmable from this environment.** The approved-repo
+listing is public but server-rendered and filterable only by internal org UUID;
+`?search=` is ignored (verified — identical rows for any term). Neither a
+`Stellar Wave` label nor Drips bot activity appears in any of the three repos,
+which is consistent with "no issues were added to a Program" but does **not**
+prove rejection. The authoritative check is the Drips maintainer dashboard.
+
+### Demo recording script had drifted (fixed, `05400a7`)
+
+The recording remains the largest single gap against submission readiness, and
+the script that feeds it had four concrete defects that would have made the
+recording fail or mislead:
+
+- it told the recorder to expect `.transcripts/06-scan-archived.txt`, while every
+  workflow writes `.json` — the only `.txt` spelling in the repo;
+- its one worked figure (`118462`) was stale by ~86k ledgers;
+- it required `soroban-state-sentinel` on `PATH` without saying how to obtain it,
+  and there are **no release binaries** (issue #7) — the from-source build that
+  the consumer's own CI uses is now included;
+- it said nothing about the capture automation, so a recorder would have
+  hand-written transcripts the workflows now produce.
+
+Every command was re-verified against the current scripts (`--check`, `--until`,
+`--wait-for`, `--force` all still exist). Expected output is marked **[live]**
+where captured from a real run on 2026-09-14 and **[template]** where this
+environment could not produce it. **Scene 5 remains a fallback and says so**: the
+entry is Healthy, so no restore output exists to show; both branches are given,
+with an explicit instruction to label the fallback as such.
+
+`deploy-and-shrink-ttl.sh` was deliberately **not** executed as a verification
+step: `.deploy/` is absent here, so it would fund a new testnet key and deploy a
+new contract, resetting the demo's 7-day clock.
+
 ## Purpose (what this repo is for)
 
 A fixture/demo suite that makes Soroban **state archival** observable
@@ -116,6 +201,8 @@ a real, decaying testnet entry to watch, not a mock.
 | Consumer schema (`contracts.yml`) | The consumer's own source — `action-state-watch` `src/config.ts` (read 2026-09-14) — not its example file, and not the earlier assumption |
 | Scheduled CI evidence | Each `demo-scan` run's **`event` field**, not just its conclusion. Checking `event` is how the "green on schedule" claim was found to be a manual dispatch |
 | Issue/PR write capability | Exercised, not assumed: the REST `permissions` object reports `push: true, triage: true` on both repos while `addComment`, `createIssue` and `git push upstream` all return 403 |
+| Program rules and eligibility | The program's own published pages — Terms & Rules §3.1/§4, the maintainer docs, the live approved-repo listing, and the Wave pages — all fetched 2026-09-14. Not prior assumptions about what a demo repo may be |
+| Branch protection | **Cannot be read** (403 on the protection API). Only indirect evidence is available, and it is inconclusive — see the note under Blocked items |
 
 ## Verdict by area (updated)
 
@@ -211,6 +298,11 @@ a real, decaying testnet entry to watch, not a mock.
   --critical-days 1`) differ from the sentinel's defaults (30d/7d).
 - `.transcripts/` holds the actual deploy transcript, sentinel scan JSON,
   watcher check, and off-chain TTL read — cross-checked against each other.
+- `docs/demo-recording-script.md` is command-accurate again (`05400a7`): every
+  flag re-verified against the scripts, drifted transcript filename and stale
+  example figure corrected, the sentinel from-source build documented, and a
+  single copy-paste block added for the whole recording. Scene 5 is explicitly
+  labelled a fallback while the entry is still Healthy.
 - README ties the pipeline together, links the transcripts, and includes
   the differentiation paragraph (SoroScope = gas/CPU profiling,
   Soroban-Guard = static security analysis; this suite = post-deployment
@@ -265,10 +357,11 @@ a real, decaying testnet entry to watch, not a mock.
 ## What is still pending (real time, not blockers)
 
 1. **Critical → Archived → restore phases** — the entry is decaying in real
-   time; Critical lands in ~6 days, Archived in ~7, then
-   `run-full-pipeline.sh --wait-for archived` exercises the restore path.
-   The transcripts for those phases will be appended when they land (issue
-   #2). Until then, the docs state this plainly — no fabricated output.
+   time. As of 2026-09-14T11:30Z it is **Healthy at 32,261 ledgers (≈44 h)**, so
+   Critical lands ~Sep 15 and Archived ~Sep 16; `run-full-pipeline.sh --wait-for
+   archived` then exercises the restore path. Capture is now automatic (see the
+   pass notes above); only the merge is manual. Until the files land the docs
+   state this plainly — no fabricated output.
 2. **`demo-restore.yml` live run** — cannot be exercised until an entry is
    archived (or the owner runs it against the live entry, which exercises
    the extend + verify path only).
@@ -317,8 +410,17 @@ Remaining, all owner-side:
    environment does not have.
 6. **Record the demo video** from `docs/demo-recording-script.md`; it has not
    been executed and no video file exists anywhere in the repo.
-7. **Confirm fixture-repo eligibility** with the program — a rules question,
-   flagged in `docs/submission-drafts.md`, not something this repo can answer.
+7. ~~Confirm fixture-repo eligibility~~ — **researched and documented** (`01f1c22`):
+   no published rule excludes a fixture repo; admission is discretionary under
+   Terms §3.1. What remains is a policy question for the organizers, plus the
+   dashboard check of whether this org's repos are already approved.
+8. **Merge [PR #12](https://github.com/Aycode01/archival-fixtures-demo/pull/12)** —
+   it carries the `contracts.yml` schema validation and every corrected doc, and
+   its `contract-tests` check is green. Worth a look before merging: the PR
+   reports `mergeStateStatus: BLOCKED` while the required check has passed and no
+   review is requested, which the documented protection config does not explain.
+   The protection API cannot be read from here (403), so this is flagged as
+   **possibly drifted, unverified** rather than diagnosed.
 
 ## Recommendations (what's left)
 
@@ -335,8 +437,12 @@ Remaining, all owner-side:
    as a standalone-network recipe (`docs/standalone-rehearsal.md`) rather than a
    `--rehearsal` flag. Rehearsal output is explicitly ephemeral and must never
    enter `.transcripts/`.
-6. **Record the demo video** and confirm fixture-repo eligibility before
-   submitting; both are open in `docs/submission-drafts.md`.
+6. **Record the demo video** before submitting. The script is now command-accurate
+   and has a single copy-paste block, so this is the one remaining step that
+   genuinely needs a human; see `docs/demo-recording-script.md`.
+7. **Watch for the next Wave announcement.** No Wave is active or upcoming, so
+   there is nothing to contribute to *today* even once the repo is approved —
+   approval and Wave timing are separate clocks.
 
 ## Summary
 
@@ -346,8 +452,8 @@ green (after a real SDK-27 API fix), the scripts deploy and scan real
 testnet state correctly (after three real execution fixes), CI has a green
 live run, and the docs now carry real captured output. The demo is
 currently mid-flight: deployed, Healthy, and decaying in real time toward the
-Archived/restore demonstration — TTL 32,424 ledgers (≈45 h) at the last
-scheduled scan, so Critical falls ~Sep 15 and Archived ~Sep 16.
+Archived/restore demonstration — TTL 32,261 ledgers (≈44 h) at the last live
+read, so Critical falls ~Sep 15 and Archived ~Sep 16.
 
 The 2026-09-14 passes added two findings the earlier review could not have
 reached: **issue #2's automation was structurally unable to close itself**
@@ -360,3 +466,15 @@ secret this environment cannot set, and the two issue-tracker records that were
 wrong (#5's evidence, #7's redirect) are drafted but need a token that can write.
 All Gap-1 items are closed — banner, badges, topics, and contrib.rocks, the last
 replaced by an honest Maintainers/Contributors section.
+
+The readiness pass turned the last open *question* into an answer: eligibility
+for a fixture/demo repo is not governed by any published rule — the Terms make
+repository admission the organizers' sole discretion — so the flag in the
+submission drafts is resolved, with `wraith-protocol/demo` as live precedent. It
+also found that the program is between Waves (Wave 8 ended 2026-08-31, none
+scheduled), which reframes the remaining work as "be ready before the next
+announcement" rather than "submit now". The demo recording script, which had
+silently drifted — a `.txt`/`.json` mismatch, a stale example figure, an
+undocumented sentinel build — is command-accurate again. What is left is
+genuinely owner-only: a secret, a video, a merge, and two drafted issue texts
+this token cannot post.
