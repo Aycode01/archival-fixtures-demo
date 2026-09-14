@@ -26,6 +26,19 @@ jobs:
         with:
           targets: wasm32v1-none
 
+      # Runs before the Rust steps so a malformed manifest fails fast. This is a
+      # step inside the existing `contract-tests` job, deliberately NOT a new
+      # required branch-protection check — adding one would change merge
+      # behaviour, which belongs to the repo owner, not to this task (issue #4),
+      # and the required check's name must stay `contract-tests`.
+      - name: Validate contracts.yml against the consumer schema
+        run: |
+          set -euo pipefail
+          python3 -c "import yaml" 2>/dev/null \
+            || python3 -m pip install --quiet --break-system-packages pyyaml \
+            || python3 -m pip install --quiet --user pyyaml
+          bash scripts/tests/validate-contracts-schema.test.sh
+
       - name: cargo test (real testnet TTL parameters)
         run: cargo test --manifest-path contracts/rapid-expiry-demo/Cargo.toml
 

@@ -1,0 +1,14 @@
+# INVALID fixture (REPO class): `keys[0]` is a Symbol SCVal for "VALUE" padded
+# with ONE byte instead of three, so the XDR is not 4-byte aligned.
+#
+# This passes every check in the consumer's src/config.ts ("keys[k] must be a
+# string") and then fails inside `soroban-state-sentinel`. This repo shipped
+# exactly this bug once, so it is the class of failure the consumer cannot catch
+# and the reason the validator adds a stricter check on top.
+network: testnet
+
+contracts:
+  - address: 'CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4'
+    label: 'fixture: misaligned key XDR'
+    keys:
+      - 'AAAADwAAAAVWQUxVRQA=' # 14 bytes — one pad byte, not three

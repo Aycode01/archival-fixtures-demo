@@ -1,0 +1,15 @@
+# Valid fixture: exercises every field the action-state-watch consumer accepts,
+# including the optional ones (label, keys, healthy-days, critical-days, alert).
+# TESTNET ONLY — this is a fixture, not a live config.
+network: testnet
+
+contracts:
+  - address: 'CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4'
+    label: 'fixture: rapid-expiry entry'
+    keys:
+      - 'AAAADwAAAAVWQUxVRQAAAA==' # SCVal Symbol "VALUE", 3 pad bytes (well-formed)
+    healthy-days: 1
+    critical-days: 1
+  - address: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF5' # optional fields omitted
+alert:
+  dedupe-window-hours: 24

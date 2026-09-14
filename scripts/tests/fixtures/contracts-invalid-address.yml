@@ -1,0 +1,8 @@
+# INVALID fixture (CONSUMER class): `address` fails the consumer's strkey regex
+# /^[CG][A-Z0-9]{55}$/ — too short, and lowercase.
+# src/config.ts throws: "address '...' does not look like a valid Stellar address".
+network: testnet
+
+contracts:
+  - address: 'Cnot-a-real-address'
+    label: 'fixture: malformed address'

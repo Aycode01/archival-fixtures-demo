@@ -1,0 +1,10 @@
+# INVALID fixture (CONSUMER class): `alert.dedupe-window-hours` must be a
+# positive integer (>= 1). Zero is rejected.
+# src/config.ts throws: "'alert.dedupe-window-hours' must be a positive integer".
+network: testnet
+
+contracts:
+  - address: 'CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4'
+
+alert:
+  dedupe-window-hours: 0
