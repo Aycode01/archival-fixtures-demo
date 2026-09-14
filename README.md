@@ -15,6 +15,7 @@ deploy a contract holding one persistent entry, watch its TTL decay over
 <p align="center">
   <a href="https://stellar.expert/explorer/testnet/contract/CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4">Live testnet contract</a> ·
   <a href="docs-site/SUMMARY.md">Documentation</a> ·
+  <a href="https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/">Hosted docs</a> ·
   <a href="https://discord.gg/pMwVZf8TX">Discord</a> ·
   <a href="https://t.me/+RZKO3ffLffY0NDg0">Telegram</a>
 </p>
@@ -88,10 +89,12 @@ SECURITY.md                   key-handling and disclosure policy
 
 ## Documentation
 
-The GitBook-style site lives in [`docs-site/`](docs-site/SUMMARY.md) and walks
-through the demo end to end: the archival lifecycle, the economics of rent,
-deploying, watching decay, restoring, the contract reference, and the CI
-workflows. The longer reference reads are in [`docs/`](docs/):
+The GitBook-style site lives in [`docs-site/`](docs-site/SUMMARY.md), is
+published at
+[https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/](https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/),
+and walks through the demo end to end: the archival lifecycle, the economics
+of rent, deploying, watching decay, restoring, the contract reference, and the
+CI workflows. The longer reference reads are in [`docs/`](docs/):
 
 - [`docs/surviving-soroban-state-archival.md`](docs/surviving-soroban-state-archival.md) —
   how Soroban storage expiry works, the sentinel's health bands, and how to

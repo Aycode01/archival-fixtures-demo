@@ -10,3 +10,4 @@
 - [Contract reference](contract-reference.md)
 - [CI workflows](ci-workflows.md)
 - [Contributing](contributing.md)
+- [Published site](https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/)
