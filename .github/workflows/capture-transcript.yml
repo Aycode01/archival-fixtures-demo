@@ -62,13 +62,9 @@ jobs:
             exit 0
           }
 
-          TTL="$(python3 scripts/read-entry-ttl.py \
-            --contract-id "$CONTRACT_ID" \
-            --rpc-url "$RPC" 2>&1 | tail -1)"
-
-          # read-entry-ttl.py prints extra debug to stderr and the integer TTL last
-          # Strip any non-numeric prefix lines
-          TTL="$(python3 scripts/read-entry-ttl.py --contract-id "$CONTRACT_ID" --rpc-url "$RPC" | head -1)"
+          # read-entry-ttl.py prints the integer TTL as the only stdout line
+          # (debug detail goes to stderr), so this captures it directly.
+          TTL="$(python3 scripts/read-entry-ttl.py --contract-id "$CONTRACT_ID" --rpc-url "$RPC")"
 
           if (( TTL <= 0 )); then
             BAND="Archived"

@@ -1,0 +1,221 @@
+# capture-restore-transcript.yml — commit the restore half of the demo
+# transcript once demo-restore.yml has run.
+#
+# Why this exists: capture-transcript.yml dispatches demo-restore.yml when the
+# entry reaches the Archived band, but nothing ever wrote the restore half of
+# the transcript. capture-transcript.yml's final step only comments on issue #2
+# once `.transcripts/07-restore.txt` exists, so without this workflow that
+# "all transcripts present" condition was unreachable and #2 could never close
+# itself. This workflow supplies exactly that missing file.
+#
+# It deliberately does NOT modify demo-restore.yml: that workflow's execution
+# path cannot be exercised from CI until the TESTNET_THROWAWAY_SECRET_KEY secret
+# exists (see issue #5), so leaving it untouched keeps the untestable surface as
+# small as possible. The finished run's real log is fetched instead — which is
+# also a more faithful transcript than anything a run could report about itself.
+#
+# On a successful demo-restore run this:
+#   1. fetches the finished run's log via `gh run view --log`
+#   2. writes .transcripts/07-restore.txt (header + the full run log)
+#   3. re-reads the entry's TTL off-chain (scripts/read-entry-ttl.py — the same
+#      read-only RPC path demo-scan.yml uses) and writes
+#      .transcripts/08-scan-post-restore.json
+#   4. opens ONE PR on the fixed branch `auto/transcripts-restore`, so a repeat
+#      run updates that PR instead of stacking a new one
+#
+# A failed demo-restore run is never captured: committing its log as a "restore
+# transcript" would present a broken run as demo evidence. If the secret is
+# unset, demo-restore.yml fails fast and this workflow stays green by doing
+# nothing.
+#
+# Direct pushes to main are blocked (branch protection sets enforce_admins:true,
+# which applies to the GITHUB_TOKEN as well), so the transcript lands via a PR
+# the owner merges. Once merged, the next scheduled demo-scan lets
+# capture-transcript.yml see all three transcripts and it comments on issue #2.
+#
+# ⚠️  TESTNET ONLY. Read-only: this workflow reads a TTL via RPC and reads an
+# existing run's log. It never signs, submits, or holds a key.
+
+name: capture-restore-transcript
+
+on:
+  workflow_run:
+    workflows: ["demo-restore"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "demo-restore run id to capture (defaults to the triggering run)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    # Only completed-successful restore runs, or an explicit manual dispatch
+    # (which is how the first capture gets backfilled from an existing run).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check whether the restore transcript already exists
+        id: check
+        run: |
+          set -euo pipefail
+          if [[ -f ".transcripts/07-restore.txt" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo ".transcripts/07-restore.txt already exists on main — nothing to capture."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Capture the demo-restore run log
+        id: capture
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          [[ -n "${RUN_ID:-}" ]] || { echo "::error::no demo-restore run id available to capture"; exit 1; }
+
+          mkdir -p .transcripts
+          {
+            echo "# Restore transcript — demo-restore.yml (TESTNET ONLY)"
+            echo "# run_id: ${RUN_ID}"
+            echo "# run_url: ${RUN_URL:-https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}}"
+            echo "# captured_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "# captured_by: capture-restore-transcript.yml"
+            echo "#"
+            echo "# This is the real log of a real run against Stellar testnet — not a"
+            echo "# simulation. The entry was archived by real elapsed ledger time and"
+            echo "# restored with RestoreFootprintOp."
+            echo
+            gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log
+          } > .transcripts/07-restore.txt
+
+          echo "wrote .transcripts/07-restore.txt ($(wc -l < .transcripts/07-restore.txt) lines)"
+
+      - name: Capture the post-restore scan
+        id: scan
+        if: steps.check.outputs.exists == 'false'
+        env:
+          CONTRACT_ID: ${{ vars.CONTRACT_ID }}
+        run: |
+          set -euo pipefail
+          RPC="https://soroban-testnet.stellar.org"
+
+          if [[ -z "${CONTRACT_ID:-}" ]]; then
+            echo "CONTRACT_ID repository variable is not set — skipping the post-restore scan."
+            echo "wrote=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # read-entry-ttl.py prints the integer TTL as the only stdout line
+          # (debug detail goes to stderr), so this captures it directly.
+          TTL="$(python3 scripts/read-entry-ttl.py --contract-id "$CONTRACT_ID" --rpc-url "$RPC")"
+
+          LATEST_LEDGER="$(curl -sS --max-time 15 -X POST "$RPC" \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"getLatestLedger"}' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["sequence"])')"
+
+          if (( TTL <= 0 )); then
+            BAND="Archived"
+          elif (( TTL <= 17280 )); then
+            BAND="Critical"
+          else
+            BAND="Healthy"
+          fi
+
+          export CONTRACT_ID TTL LATEST_LEDGER BAND
+          export TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          python3 - <<'PYEOF'
+          import json, os
+          data = {
+              "captured_at": os.environ["TS"],
+              "band": os.environ["BAND"],
+              "phase": "post-restore",
+              "contract_id": os.environ["CONTRACT_ID"],
+              "ttl_ledgers": int(os.environ["TTL"]),
+              "latest_ledger": int(os.environ["LATEST_LEDGER"]),
+              "source": "capture-restore-transcript.yml workflow (automated)",
+              "note": "Real capture from live testnet decay — not a simulation.",
+          }
+          with open(".transcripts/08-scan-post-restore.json", "w") as f:
+              json.dump(data, f, indent=2)
+              f.write("\n")
+          print("Wrote .transcripts/08-scan-post-restore.json")
+          PYEOF
+
+          echo "post-restore band=$BAND ttl=$TTL ledgers (latest ledger $LATEST_LEDGER)"
+          echo "wrote=true" >> "$GITHUB_OUTPUT"
+
+          # A restore that leaves the entry archived did not work. Fail loudly
+          # rather than commit a transcript that contradicts itself.
+          [[ "$BAND" != "Archived" ]] || { echo "::error::entry is still Archived after restore"; exit 1; }
+
+      - name: Open PR with the restore transcript
+        if: steps.capture.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          BRANCH="auto/transcripts-restore"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fixed branch name: reuse it if it already exists so re-runs update
+          # the same PR instead of opening a second one.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
+
+          git add .transcripts/07-restore.txt
+          [[ -f .transcripts/08-scan-post-restore.json ]] && git add .transcripts/08-scan-post-restore.json
+
+          if git diff --cached --quiet; then
+            echo "No transcript changes to commit — the captured run matched what is already on the branch."
+            exit 0
+          fi
+
+          git commit -m "chore(transcripts): capture restore transcript [automated]"
+          git push --force-with-lease origin "$BRANCH"
+
+          if [[ -n "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number')" ]]; then
+            echo "PR for $BRANCH is already open — the push above updated it."
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "chore(transcripts): capture restore transcript [automated]" \
+            --base main \
+            --head "$BRANCH" \
+            --body "Automated capture of the restore half of the demo transcript.
+
+          **Source run:** ${RUN_URL:-https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}}
+
+          Adds:
+          - \`.transcripts/07-restore.txt\` — the real \`demo-restore.yml\` run log (archived entry restored with \`RestoreFootprintOp\`, then re-extended and re-verified off-chain)
+          - \`.transcripts/08-scan-post-restore.json\` — the post-restore TTL read via \`scripts/read-entry-ttl.py\`
+
+          Opened automatically by \`capture-restore-transcript.yml\` when a \`demo-restore\` run completed successfully and \`.transcripts/07-restore.txt\` did not yet exist on \`main\`.
+
+          With this merged, \`.transcripts/07-restore.txt\` exists, so the next scheduled \`demo-scan\` lets \`capture-transcript.yml\` see all three transcripts and comment on issue #2.
+
+          ⚠️ Testnet-only fixture data."
