@@ -64,13 +64,21 @@ scripts/trigger-eviction-wait.sh   read-only TTL watcher (polls the sentinel)
 scripts/run-full-pipeline.sh       deploy -> decay -> remediate -> verify
 scripts/read-entry-ttl.py          off-chain TTL read via getLedgerEntries
                                    (stdlib python; used by CI, no CLI needed)
+scripts/validate-contracts-schema.py   checks contracts.yml against
+                                   action-state-watch's consumer schema
+scripts/tests/                     fixture tests for the validator
+.github/workflows/capture-transcript.yml  auto-commits band-transition scans
+.github/workflows/capture-restore-transcript.yml  auto-commits the restore log
 .github/workflows/demo-scan.yml    scheduled TTL scan (self-contained,
                                    off-chain read, fails red on decay)
 .github/workflows/demo-restore.yml manually-triggered restore (RestoreFootprintOp
                                    via the TESTNET-ONLY throwaway key)
-.github/workflows/test-contract.yml cargo test on push/PR
-contracts.yml                  fixture manifest consumed by action-state-watch's
-                               self-check workflow
+.github/workflows/test-contract.yml cargo test + contracts.yml schema check
+contracts.yml                  fixture manifest, written in the shape
+                               action-state-watch's consumer loads. NOTE: that
+                               action reads its own contracts.example.yml, not
+                               this file — this is the fixture-side source of
+                               truth it was seeded from (see issue #4).
 docs/                          the deep dives (archival mechanics, TTL boundaries)
 docs-site/                     GitBook-style documentation site (SUMMARY.md)
 .transcripts/                  real terminal output from the live testnet run
