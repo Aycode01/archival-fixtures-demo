@@ -1,0 +1,252 @@
+# capture-transcript.yml — auto-commit scan transcripts when the entry's
+# health band transitions to Critical or Archived.
+#
+# Runs as a step appended to the demo-scan.yml schedule (every 6h) by being
+# triggered on `workflow_run` completion, so it never races with the scan job.
+# When the band is Critical or Archived AND the matching transcript file does
+# not already exist in .transcripts/, this workflow:
+#
+#   1. Fetches the latest scan output (TTL + band) via scripts/read-entry-ttl.py
+#   2. Writes it to .transcripts/0X-scan-<band>.json
+#   3. Opens a PR targeting main (direct push is blocked by branch protection;
+#      enforce_admins:true applies to the GITHUB_TOKEN bot too).
+#
+# For the Archived band it also triggers demo-restore.yml automatically
+# so the restore run can be captured as .transcripts/07-restore.txt.
+#
+# Once all transcripts exist, a comment is posted on issue #2 with a summary
+# so the owner can close it after reviewing the real data.
+#
+# ⚠️  TESTNET ONLY. This workflow reads TTL via RPC only — it never signs,
+# submits, or holds a key. The restore trigger dispatches demo-restore.yml
+# which uses the TESTNET_THROWAWAY_SECRET_KEY secret already scoped to testnet.
+
+name: capture-transcript
+
+on:
+  workflow_run:
+    workflows: ["demo-scan"]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    # Only run after a successful OR failed scan (failed = Critical/Archived,
+    # which is exactly when we want to capture). Skip if demo-scan itself
+    # was skipped (e.g. a re-run of a non-scan event).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event.workflow_run.conclusion == 'failure'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read current TTL and band
+        id: scan
+        env:
+          CONTRACT_ID: ${{ vars.CONTRACT_ID }}
+        run: |
+          set -euo pipefail
+          RPC="https://soroban-testnet.stellar.org"
+
+          [[ -n "${CONTRACT_ID:-}" ]] || {
+            echo "CONTRACT_ID not set — skipping capture"
+            echo "band=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          TTL="$(python3 scripts/read-entry-ttl.py \
+            --contract-id "$CONTRACT_ID" \
+            --rpc-url "$RPC" 2>&1 | tail -1)"
+
+          # read-entry-ttl.py prints extra debug to stderr and the integer TTL last
+          # Strip any non-numeric prefix lines
+          TTL="$(python3 scripts/read-entry-ttl.py --contract-id "$CONTRACT_ID" --rpc-url "$RPC" | head -1)"
+
+          if (( TTL <= 0 )); then
+            BAND="Archived"
+          elif (( TTL <= 17280 )); then
+            BAND="Critical"
+          else
+            BAND="Healthy"
+          fi
+
+          LATEST_LEDGER="$(curl -sS --max-time 15 -X POST "$RPC" \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"getLatestLedger"}' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["sequence"])')"
+
+          echo "ttl=$TTL" >> "$GITHUB_OUTPUT"
+          echo "band=$BAND" >> "$GITHUB_OUTPUT"
+          echo "latest_ledger=$LATEST_LEDGER" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "contract=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          echo "Band: $BAND  TTL: $TTL ledgers  Latest ledger: $LATEST_LEDGER"
+
+      - name: Check if Critical transcript already exists
+        id: check_critical
+        if: steps.scan.outputs.band == 'Critical'
+        run: |
+          if [[ -f ".transcripts/05-scan-critical.json" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check if Archived transcript already exists
+        id: check_archived
+        if: steps.scan.outputs.band == 'Archived'
+        run: |
+          if [[ -f ".transcripts/06-scan-archived.json" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write Critical transcript
+        id: write_critical
+        if: >-
+          steps.scan.outputs.band == 'Critical' &&
+          steps.check_critical.outputs.exists == 'false'
+        env:
+          CONTRACT_ID: ${{ steps.scan.outputs.contract }}
+          TTL: ${{ steps.scan.outputs.ttl }}
+          LATEST_LEDGER: ${{ steps.scan.outputs.latest_ledger }}
+          TS: ${{ steps.scan.outputs.timestamp }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYEOF'
+          import json, os
+          data = {
+            "captured_at": os.environ["TS"],
+            "band": "Critical",
+            "contract_id": os.environ["CONTRACT_ID"],
+            "ttl_ledgers": int(os.environ["TTL"]),
+            "latest_ledger": int(os.environ["LATEST_LEDGER"]),
+            "source": "capture-transcript.yml workflow (automated)",
+            "note": "Real capture from live testnet decay — not a simulation."
+          }
+          with open(".transcripts/05-scan-critical.json", "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+          print("Wrote .transcripts/05-scan-critical.json")
+          PYEOF
+          echo "wrote=true" >> "$GITHUB_OUTPUT"
+
+      - name: Write Archived transcript
+        id: write_archived
+        if: >-
+          steps.scan.outputs.band == 'Archived' &&
+          steps.check_archived.outputs.exists == 'false'
+        env:
+          CONTRACT_ID: ${{ steps.scan.outputs.contract }}
+          TTL: ${{ steps.scan.outputs.ttl }}
+          LATEST_LEDGER: ${{ steps.scan.outputs.latest_ledger }}
+          TS: ${{ steps.scan.outputs.timestamp }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYEOF'
+          import json, os
+          data = {
+            "captured_at": os.environ["TS"],
+            "band": "Archived",
+            "contract_id": os.environ["CONTRACT_ID"],
+            "ttl_ledgers": 0,
+            "latest_ledger": int(os.environ["LATEST_LEDGER"]),
+            "source": "capture-transcript.yml workflow (automated)",
+            "note": "Real capture from live testnet decay — not a simulation."
+          }
+          with open(".transcripts/06-scan-archived.json", "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+          print("Wrote .transcripts/06-scan-archived.json")
+          PYEOF
+          echo "wrote=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR with transcript(s)
+        if: >-
+          steps.write_critical.outputs.wrote == 'true' ||
+          steps.write_archived.outputs.wrote == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BAND: ${{ steps.scan.outputs.band }}
+          TTL: ${{ steps.scan.outputs.ttl }}
+          TS: ${{ steps.scan.outputs.timestamp }}
+        run: |
+          set -euo pipefail
+          BRANCH="auto/transcript-${BAND,,}-$(date -u +%Y%m%d-%H%M%S)"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add .transcripts/
+          git commit -m "chore(transcripts): capture ${BAND} scan transcript [automated]
+
+          Band: ${BAND}
+          TTL:  ${TTL} ledgers
+          At:   ${TS}
+
+          Auto-committed by capture-transcript.yml on the scheduled demo-scan.
+          Closes part of issue #2."
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore(transcripts): capture ${BAND} scan transcript [automated]" \
+            --body "Automated transcript capture from the live testnet decay.
+
+          **Band:** \`${BAND}\`
+          **TTL at capture:** \`${TTL}\` ledgers
+          **Captured at:** \`${TS}\`
+
+          This PR was opened automatically by \`capture-transcript.yml\` when the scheduled \`demo-scan\` detected the \`${BAND}\` band and the matching transcript did not yet exist in \`.transcripts/\`.
+
+          Review the JSON file for accuracy, then merge. Once both Critical and Archived transcripts are merged and the restore transcript lands, close issue #2." \
+            --base main \
+            --head "$BRANCH"
+
+      - name: Trigger demo-restore when Archived and restore transcript missing
+        if: >-
+          steps.scan.outputs.band == 'Archived' &&
+          steps.write_archived.outputs.wrote == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f ".transcripts/07-restore.txt" ]]; then
+            echo "Entry is Archived — triggering demo-restore.yml to capture the restore transcript."
+            gh workflow run demo-restore.yml \
+              --repo "$GITHUB_REPOSITORY"
+            echo "demo-restore.yml dispatched. Its output will appear in the Actions tab."
+          else
+            echo ".transcripts/07-restore.txt already exists — skipping restore trigger."
+          fi
+
+      - name: Comment on issue #2 when all transcripts exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BAND: ${{ steps.scan.outputs.band }}
+        run: |
+          set -euo pipefail
+          CRITICAL=".transcripts/05-scan-critical.json"
+          ARCHIVED=".transcripts/06-scan-archived.json"
+          RESTORE=".transcripts/07-restore.txt"
+
+          if [[ -f "$CRITICAL" && -f "$ARCHIVED" && -f "$RESTORE" ]]; then
+            gh issue comment 2 \
+              --repo "$GITHUB_REPOSITORY" \
+              --body "All three transcripts are now present:
+          - \`.transcripts/05-scan-critical.json\` ✅
+          - \`.transcripts/06-scan-archived.json\` ✅
+          - \`.transcripts/07-restore.txt\` ✅
+
+          Please review and close this issue once the PRs containing the transcript files are merged to \`main\`."
+          elif [[ -f "$CRITICAL" && ! -f "$ARCHIVED" ]]; then
+            gh issue comment 2 \
+              --repo "$GITHUB_REPOSITORY" \
+              --body "Critical transcript captured automatically (\`.transcripts/05-scan-critical.json\`). A PR has been opened for review. Waiting for the Archived phase (~$(( ${BAND:+0} )) more ledgers)."
+          fi
