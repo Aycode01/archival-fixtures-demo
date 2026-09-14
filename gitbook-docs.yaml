@@ -1,0 +1,51 @@
+# gitbook-docs.yaml — GitBook Site Git Sync structure for archival-fixtures-demo.
+#
+# The repository root holds exactly two documentation content directories, so the
+# site maps them onto two top-level spaces. Every `content.directory` below is a
+# real directory in this repository; nothing here is invented.
+#
+#   ./docs-site  the published documentation site — introduction, archival
+#                lifecycle, rent economics, contract reference, CI workflows,
+#                contributing, plus the running-the-demo/ walkthroughs
+#   ./docs       the deep dives and working notes — archival mechanics, TTL
+#                boundaries, standalone-network rehearsal, recording script,
+#                and release notes
+#
+# No sections: a section exists to gather several spaces behind a single
+# navigation entry, and there are only two spaces here, so listing them at the
+# top level is the simpler truthful form. No external links either — those are
+# only valid in a section-based site, and this repository declares no navigation
+# of that kind to model.
+#
+# Deliberately not mapped as spaces:
+#   ./                              A space pointed at the repository root would
+#                                   be read as one book and would sweep in every
+#                                   Markdown file in the repo, including the two
+#                                   directories above. The root-level files
+#                                   (README.md, CONTRIBUTING.md, SECURITY.md) have
+#                                   no dedicated directory of their own.
+#   ./assets ./contracts ./scripts  Not documentation directories — a banner
+#                                   image, Rust contract source, and shell
+#                                   scripts respectively.
+
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+version: 1
+
+site:
+  title: archival-fixtures-demo
+  structure:
+    # Opens by default: this is the documentation site proper.
+    - type: space
+      key: space-docs-site
+      title: Documentation
+      path: docs-site
+      default: true
+      content:
+        directory: ./docs-site
+
+    - type: space
+      key: space-deep-dives
+      title: Deep dives
+      path: docs
+      content:
+        directory: ./docs
