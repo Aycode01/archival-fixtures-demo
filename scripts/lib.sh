@@ -101,9 +101,10 @@ require_sentinel() {
 require_testnet_env() {
     require_cmd curl "install curl"
     require_jq
-    if [[ "$SOROBAN_NETWORK_PASSPHRASE" != *"Test SDF Network"* ]]; then
-        die "SOROBAN_NETWORK_PASSPHRASE is set to something that is not the testnet passphrase \
-('$SOROBAN_NETWORK_PASSPHRASE'). This repo is TESTNET-ONLY. Refusing to continue."
+    if [[ "$SOROBAN_NETWORK_PASSPHRASE" != *"Test SDF Network"* && \
+          "$SOROBAN_NETWORK_PASSPHRASE" != *"Standalone Network"* ]]; then
+        die "SOROBAN_NETWORK_PASSPHRASE is set to something that is not the testnet or standalone passphrase \
+('$SOROBAN_NETWORK_PASSPHRASE'). This repo is TESTNET/standalone-ONLY. Refusing to continue."
     fi
     case "$SOROBAN_RPC_URL" in
         *testnet*|*localhost*|*127.0.0.1*|*standalone*) ;;
