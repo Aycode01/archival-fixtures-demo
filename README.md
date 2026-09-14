@@ -241,9 +241,9 @@ contract's state over time.
 
 ## Contributors
 
-This repository currently has a single maintainer and no outside
-contributors yet — the contributor credits section will be added once
-there are real contributors to credit.
+[![Contributors](https://contrib.rocks/image?repo=Aycode01/archival-fixtures-demo)](https://github.com/Aycode01/archival-fixtures-demo/graphs/contributors)
+
+This repository currently has a single maintainer and no outside contributors yet.
 
 ## License
 
