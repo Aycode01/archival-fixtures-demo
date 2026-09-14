@@ -1,5 +1,12 @@
 # gitbook-docs.yaml — GitBook Site Git Sync structure for archival-fixtures-demo.
 #
+# Published site: https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/
+# That URL is the site root; the `Documentation` space below (`default: true`,
+# path `docs-site`) is the space the site opens on, and the `Deep dives` space
+# (path `docs`) hangs off the same site. GitBook derives a space's URL from its
+# `path` — not from this comment — so renaming a `path` here moves the published
+# pages as well.
+#
 # The repository root holds exactly two documentation content directories, so the
 # site maps them onto two top-level spaces. Every `content.directory` below is a
 # real directory in this repository; nothing here is invented.
@@ -13,9 +20,11 @@
 #
 # No sections: a section exists to gather several spaces behind a single
 # navigation entry, and there are only two spaces here, so listing them at the
-# top level is the simpler truthful form. No external links either — those are
-# only valid in a section-based site, and this repository declares no navigation
-# of that kind to model.
+# top level is the simpler truthful form. No external links at the site level
+# either — those are only valid in a section-based site, and this repository
+# declares no navigation of that kind to model. (An external link *inside* a
+# space's SUMMARY.md is a different mechanism; docs-site/SUMMARY.md uses one to
+# point back at the published site root above.)
 #
 # Deliberately not mapped as spaces:
 #   ./                              A space pointed at the repository root would
