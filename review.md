@@ -1,9 +1,95 @@
-# Review — `archival-fixtures-demo` (updated 2026-09-09: completion pass + banner pass)
+# Review — `archival-fixtures-demo` (updated 2026-09-14: closeout pass + submission pass)
 
 A self-review of the repo as it stands after the verification/hardening
 pass: the earlier review marked everything "verified by construction"; this
 one records what is now **verified by execution** against the live network,
 what was found and fixed, and what is still pending or blocked.
+
+## Closeout + submission passes (2026-09-14)
+
+Two passes ran on this date. The first was scoped to close issues #3–#7 and land
+PR #9; re-checking found all of that already done (#3–#7 closed, PRs #9 and #10
+merged) except issue #2, so it became a verification pass plus one real fix. The
+second did the remaining actionable item and produced the submission materials.
+
+> **Process note.** The first pass's update to this file was committed
+> (`ad8360b`) and pushed to its fork branch, but PR #11 was opened and merged
+> before that commit landed, so it never reached `main`. This revision folds
+> both passes in. Worth remembering generally: a commit pushed to the fork is
+> not a commit that has been merged.
+
+### Issue #2's automation could not self-close (fixed, `585ebb6`)
+
+`capture-transcript.yml` dispatched `demo-restore.yml` when the entry reached
+Archived, but **nothing anywhere wrote `.transcripts/07-restore.txt`** — while
+that same workflow's final step gated its comment on issue #2 on that exact file
+existing. The condition was unreachable by construction. `585ebb6` adds
+`capture-restore-transcript.yml`, which on a **successful** restore run fetches
+the run's real log into `07-restore.txt`, writes the
+`08-scan-post-restore.json` that `docs/demo-recording-script.md` already
+expected, and opens one PR on the fixed branch `auto/transcripts-restore` so
+re-runs update it rather than stacking new ones. Failed runs are never captured,
+so an unset secret leaves it green and silent instead of committing a broken run
+as evidence. `e361f58` removed a dead duplicate TTL assignment in
+`capture-transcript.yml`.
+
+Capture is now automatic for all three transcripts. **Merging them is still
+manual** — branch protection sets `enforce_admins: true`, which binds the
+`GITHUB_TOKEN` too, so the automation cannot self-merge.
+
+### `contracts.yml` was loadable by nothing (fixed, `933687e` / `b05bf67` / `25078cf`)
+
+This file previously described `contracts.yml` as a proposal for
+`action-state-watch`'s self-check "since that repo is not public". That repo is
+now public, and reading it produced the opposite of the assumption: its
+self-check runs with `config-path: contracts.example.yml`, **its own copy**, so
+nothing was reading this repo's file. Handed to the real loader it throws
+`Config must include a non-empty 'contracts' array` — the shape was never
+loadable.
+
+The schema was taken from the authoritative source, the consumer's
+`src/config.ts`, not from its example file: `network` (required, non-empty
+string); `contracts` (required, non-empty array), each entry requiring `address`
+matching `/^[CG][A-Z0-9]{55}$/` and optionally `label` (string), `keys`
+(string[]), `healthy-days` / `critical-days` (non-negative numbers); optional
+`alert.dedupe-window-hours` (positive integer >= 1). Unknown keys are read into a
+typed object and dropped, which is what lets this repo keep fixture metadata
+alongside consumer-required fields.
+
+- `scripts/validate-contracts-schema.py` transcribes that schema and reports
+  **CONSUMER** failures (the action would throw) separately from **REPO**
+  failures (the action silently accepts, then the sentinel chokes) — the latter
+  catches misaligned SCVal key XDR, the same class of bug this repo shipped
+  once before.
+- `contracts.yml` is restructured into the consumer's shape with fixture
+  metadata kept as ignored extras, and validated in CI as a step inside the
+  existing `contract-tests` job — a step, not a new required check, since
+  adding one changes merge behaviour and belongs to the owner.
+- Two consequences, not buried: `address` is now **literal** (the consumer
+  cannot resolve one indirectly), and the duplicated `scan:` block is gone in
+  favour of the per-entry thresholds.
+
+### Issue #5's record was wrong; the schedule has since fixed itself
+
+Issue #5 was closed citing run `34832138820` as proof `demo-scan.yml` is "green
+and running on schedule". That run was a **manual `workflow_dispatch`**. At
+re-check time **all 22 scheduled runs had failed**, every one back to
+2026-09-08, with `CONTRACT_ID repository variable is not set`.
+
+The schedule then produced its first genuine success — run `34837370757`, event
+`schedule`, 2026-09-14T11:16:23Z, reading `ttl=32424 band=Healthy`. Tally: 1
+scheduled success, 22 scheduled failures, 1 manual success. The variable is
+therefore set and the cron works; the earlier failures indicate it did not exist
+yet, not a workflow bug. A correcting comment was drafted for #5, but see the
+token limits below — it could not be posted.
+
+### Issue #7's redirect was never made
+
+#7 was closed as out-of-scope for this repo with a note that an equivalent issue
+"should be opened" in the sentinel repo. It was not:
+`Aycode01/soroban-state-sentinel` is public, has issues enabled, and has **zero
+issues**, so the release-binaries need is tracked nowhere. Consumers still build
+the sentinel from source.
 
 ## Purpose (what this repo is for)
 
@@ -27,6 +113,9 @@ a real, decaying testnet entry to watch, not a mock.
 | CI | Live GitHub Actions runs (test-contract passed; demo-scan scheduled runs recorded) |
 | Repo hygiene | Full `find` of `.git`/`.gitkeep`/`.gitignore`, `git status --ignored`, `git check-ignore` |
 | README banner convention | Live GitHub: `karagozemin/Sub-Rosa` (top-level `assets/` dir + `<p align="center">` wrapper); `soroban-state-sentinel`, `carbonledger`, `back-it-onchain` have no banner to contradict it |
+| Consumer schema (`contracts.yml`) | The consumer's own source — `action-state-watch` `src/config.ts` (read 2026-09-14) — not its example file, and not the earlier assumption |
+| Scheduled CI evidence | Each `demo-scan` run's **`event` field**, not just its conclusion. Checking `event` is how the "green on schedule" claim was found to be a manual dispatch |
+| Issue/PR write capability | Exercised, not assumed: the REST `permissions` object reports `push: true, triage: true` on both repos while `addComment`, `createIssue` and `git push upstream` all return 403 |
 
 ## Verdict by area (updated)
 
@@ -77,17 +166,36 @@ a real, decaying testnet entry to watch, not a mock.
   `live_until_ledger` 4,704,624).
 - `test-contract.yml` (new, `4a85eb8`): cargo test + wasm build on push and
   every PR. **Live run on the push: passed.**
-- `demo-scan.yml`'s scheduled cron has **fired twice and failed both times
-  with `CONTRACT_ID repository variable is not set`** — the documented
-  setup requirement, now proven live. It will keep failing until the repo
-  owner sets the variable (see Blocked below).
+- `demo-scan.yml`'s scheduled cron is proven to fire and has now succeeded.
+  History: 22 scheduled failures (every run back to 2026-09-08, all
+  `CONTRACT_ID repository variable is not set`), then the **first scheduled
+  success** — run `34837370757`, event `schedule`, 2026-09-14T11:16:23Z,
+  `ttl=32424 band=Healthy`. The single earlier green run was a manual
+  `workflow_dispatch` and was never evidence about the schedule.
+- `capture-transcript.yml` (`fa019f6`) — on each completed `demo-scan`, writes
+  the Critical/Archived scan transcript when the band flips and that file is
+  absent, then opens a PR.
+- `capture-restore-transcript.yml` (`585ebb6`) — on a successful
+  `demo-restore` run, commits `07-restore.txt` and
+  `08-scan-post-restore.json`. Together these close the gap that made issue #2
+  uncloseable; see the pass notes above.
 
-### Fixture manifest (`contracts.yml`) — proposal, unvalidated
+### Fixture manifest (`contracts.yml`) — aligned and validated
 
-- Declares the fixture (network, contract-id env var, WASM path, entry
-  key + padded SCVal XDR, sentinel thresholds) for `action-state-watch`'s
-  self-check. Since that repo is not public, the schema is a documented
-  proposal rather than a validated contract (issue #4).
+- Written in the shape `action-state-watch`'s consumer actually loads, with the
+  fixture metadata (WASM path, deploy script, entry XDR, rpc_url) retained as
+  extra keys its loader drops. Validated by
+  `scripts/validate-contracts-schema.py` in CI (issue #4, closed).
+- The schema comes from the consumer's source, not a guess. Worth recording what
+  the earlier pass got wrong: this file was described as a proposal for the
+  consumer's self-check *while that repo was private*. Once public, the
+  self-check turned out to read its own `contracts.example.yml`, so this repo's
+  manifest was consumed by nothing and was not even loadable by the consumer.
+- Known trade-off: `address` is literal, because the consumer requires a
+  concrete strkey. A redeploy must update it alongside `.deploy/contract-id.txt`.
+- Still outstanding downstream: the consumer's own copy
+  (`action-state-watch/contracts.example.yml`) has not been aligned to match,
+  so the two can drift.
 
 ### Docs — real captures now
 
@@ -147,9 +255,10 @@ a real, decaying testnet entry to watch, not a mock.
    TTL, to the ledger.
 4. **`cargo test` green (5/5)** and the WASM build green — locally and in
    GitHub Actions (`test-contract.yml` passed on the push).
-5. **The scheduled cron fires** — demo-scan has run twice; both runs failed
-   for the documented, expected reason (missing `CONTRACT_ID` variable),
-   not a workflow bug.
+5. **The scheduled cron fires and now succeeds** — 22 scheduled failures (all
+   `CONTRACT_ID`), then the first scheduled success: `34837370757`, event
+   `schedule`, 2026-09-14T11:16:23Z, `ttl=32424 band=Healthy`. Firing alone was
+   never evidence of health; the `event` field is what settles it.
 6. **Scripts run end-to-end from a stranger's setup path** — the README's
    deploy → check flow was exercised as written.
 
@@ -163,39 +272,71 @@ a real, decaying testnet entry to watch, not a mock.
 2. **`demo-restore.yml` live run** — cannot be exercised until an entry is
    archived (or the owner runs it against the live entry, which exercises
    the extend + verify path only).
-3. **`contracts.yml` validation** — blocked on `action-state-watch` being
-   public (issue #4).
-4. **Sentinel release binaries** — none published; consumers build from
-   source (issue #7).
-5. **Remaining Gap-1 items** — the README banner item is closed; badges,
-   the maintainer table, GitHub topics, and the contrib.rocks credits
-   section are still open (all separate, already-scoped items).
+3. **`contracts.yml` validation** — **done** (issue #4 closed): the consumer
+   schema was read from `action-state-watch`'s `src/config.ts` and is enforced
+   in CI. The consumer's own copy still needs aligning.
+4. **Sentinel release binaries** — none published; consumers build from source.
+   Issue #7 was closed as out-of-scope, but the promised redirect issue in
+   `soroban-state-sentinel` was **never opened**, so the need is tracked nowhere.
+5. **Remaining Gap-1 items** — none. Banner, badges, topics (8 set) and the
+   contrib.rocks question are all closed; contrib.rocks was removed (`91de157`)
+   in favour of a Maintainers/Contributors section stating there are no outside
+   contributors.
 
 ## Blocked items that need the repo owner (token permissions)
 
-The environment token is refused (HTTP 403) for: Actions variables/secrets,
-workflow dispatch, and the branch-protection API. To finish Gap 4 / Gap 5:
+The environment token is **read-only and fork-scoped**. Confirmed refused (HTTP
+403) for: Actions variables/secrets, workflow dispatch, the branch-protection
+API, **issue and PR comment creation**, **issue creation** (on any repo,
+including `soroban-state-sentinel`), and **`git push` to upstream**
+(`Aycode01/*`). 
 
-1. Set the repository **variable** `CONTRACT_ID` =
-   `CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4`.
-2. Set the repository **secret** `TESTNET_THROWAWAY_SECRET_KEY` = the `S...`
-   key in `.deploy/testnet-throwaway.secret` (TESTNET-ONLY throwaway).
-3. Trigger `demo-scan.yml` (should report Healthy) and `demo-restore.yml`
-   (extend+verify path now; restore path once archived); record the runs.
-4. Protect `main` with required checks using the real job names:
-   `contract-tests` (test-contract.yml) and `scan` (demo-scan.yml — give it
-   a `pull_request` trigger so it appears on PRs; read-only). Do **not**
-   require `demo-restore`'s job — it is schedule/manual-only, never runs on
-   PRs, and a required check on it would deadlock every merge (issue #6).
+Do not read the REST `permissions` field as a capability check: it reports
+`push: true, triage: true` on both repos while the actual credential cannot
+write to either.
+
+Remaining, all owner-side:
+
+1. ~~Set the repository **variable** `CONTRACT_ID`~~ — **done.** Proven by the
+   first scheduled success (run `34837370757`, 2026-09-14T11:16:23Z), which
+   logged the contract id and read a live TTL.
+2. **Set the repository secret `TESTNET_THROWAWAY_SECRET_KEY`** = the `S...` key
+   in `.deploy/testnet-throwaway.secret` (TESTNET-ONLY throwaway). The last real
+   blocker on `demo-restore.yml` and therefore on the restore transcript.
+3. ~~Protect `main`~~ — **done** (issue #6): required check `contract-tests`
+   only, `enforce_admins: true`, `required_approving_review_count: 0`,
+   force-push and deletion disabled. The earlier advisory here (never require
+   `scan` or `restore` — both are schedule/manual-only and would deadlock every
+   PR) was followed. Consequence worth remembering: `enforce_admins: true` binds
+   the `GITHUB_TOKEN` too, which is why the transcript workflows must open PRs
+   rather than push to `main`.
+4. **Merge the transcript PRs** as Critical/Archived/restore data lands.
+5. **Post the drafted correction on issue #5** and **open the missing
+   `soroban-state-sentinel` release-binaries issue** — both texts are drafted in
+   the 2026-09-14 session output, but writing them needs a token this
+   environment does not have.
+6. **Record the demo video** from `docs/demo-recording-script.md`; it has not
+   been executed and no video file exists anywhere in the repo.
+7. **Confirm fixture-repo eligibility** with the program — a rules question,
+   flagged in `docs/submission-drafts.md`, not something this repo can answer.
 
 ## Recommendations (what's left)
 
-1. Let the deployed entry decay and capture the Critical/Archived/restore
-   transcripts when they land (issue #2) — the docs already point at this.
-2. Owner-side: complete the blocked items above (issues #4/#5/#6).
-3. Consider the standalone-network rehearsal mode for demoing without the
-   ~7-day wait (issue #3).
-4. Consider publishing sentinel release binaries (issue #7).
+1. **Set `TESTNET_THROWAWAY_SECRET_KEY`** (issue #5). It is the only remaining
+   blocker on the restore transcript; everything else in #2 is automated.
+2. **Merge the transcript PRs when they land** so #2 closes itself. Do not close
+   #2 by hand — let it close on real data.
+3. **Align the consumer's copy of the manifest.** This repo's `contracts.yml` is
+   now consumer-valid, but `action-state-watch/contracts.example.yml` has not
+   been updated to match, so the two can drift.
+4. **Open the missing `soroban-state-sentinel` issue** for #7's release
+   binaries — the redirect was declared but never made.
+5. ~~Standalone-network rehearsal mode~~ — **done** (issue #3, PR #10), shipped
+   as a standalone-network recipe (`docs/standalone-rehearsal.md`) rather than a
+   `--rehearsal` flag. Rehearsal output is explicitly ephemeral and must never
+   enter `.transcripts/`.
+6. **Record the demo video** and confirm fixture-repo eligibility before
+   submitting; both are open in `docs/submission-drafts.md`.
 
 ## Summary
 
@@ -204,15 +345,18 @@ construction" to "verified by execution": the contract compiles and tests
 green (after a real SDK-27 API fix), the scripts deploy and scan real
 testnet state correctly (after three real execution fixes), CI has a green
 live run, and the docs now carry real captured output. The demo is
-currently mid-flight: deployed, Healthy, and decaying in real time toward
-the Archived/restore demonstration. What remains is either real-time wait
-(the decay), owner-side admin actions the environment token cannot perform
-(variables/secrets, workflow dispatch, branch protection), or dependencies
-outside this repo (`action-state-watch` publication). No known design flaws
-remain unaddressed. The Gap-1 README banner item is now closed: after an
-earlier raster-banner attempt was reverted at the owner's request, the
-banner was regenerated as a hand-authored SVG with the repo name as real
-`<text>` (so it can't drift out of sync) and rasterized to a ~53 KB PNG —
-in the README, centered per the confirmed approved-repo convention, and
-verified serving 200 over HTTPS. Badges, the maintainer table, topics, and
-contrib.rocks remain the open Gap-1 items.
+currently mid-flight: deployed, Healthy, and decaying in real time toward the
+Archived/restore demonstration — TTL 32,424 ledgers (≈45 h) at the last
+scheduled scan, so Critical falls ~Sep 15 and Archived ~Sep 16.
+
+The 2026-09-14 passes added two findings the earlier review could not have
+reached: **issue #2's automation was structurally unable to close itself**
+(nothing wrote the restore transcript its closing condition depended on), and
+**`contracts.yml` was loadable by nothing** (the consumer reads its own copy, and
+this repo's file was in a shape its loader rejects outright). Both are fixed;
+the manifest is now validated in CI against the consumer's real source, and the
+scheduled scan has finally gone green on its own. The remaining hard blocker is a
+secret this environment cannot set, and the two issue-tracker records that were
+wrong (#5's evidence, #7's redirect) are drafted but need a token that can write.
+All Gap-1 items are closed — banner, badges, topics, and contrib.rocks, the last
+replaced by an honest Maintainers/Contributors section.
