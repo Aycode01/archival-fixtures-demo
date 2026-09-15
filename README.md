@@ -15,6 +15,7 @@ deploy a contract holding one persistent entry, watch its TTL decay over
 <p align="center">
   <a href="https://stellar.expert/explorer/testnet/contract/CAEDHSOD3TXIAZF2BZMMNX7A2OKBCVE4WU7A6RWTHGGHWHJXHEQUMAT4">Live testnet contract</a> ·
   <a href="docs-site/SUMMARY.md">Documentation</a> ·
+  <a href="https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/">Hosted docs</a> ·
   <a href="https://discord.gg/pMwVZf8TX">Discord</a> ·
   <a href="https://t.me/+RZKO3ffLffY0NDg0">Telegram</a>
 </p>
@@ -64,13 +65,21 @@ scripts/trigger-eviction-wait.sh   read-only TTL watcher (polls the sentinel)
 scripts/run-full-pipeline.sh       deploy -> decay -> remediate -> verify
 scripts/read-entry-ttl.py          off-chain TTL read via getLedgerEntries
                                    (stdlib python; used by CI, no CLI needed)
+scripts/validate-contracts-schema.py   checks contracts.yml against
+                                   action-state-watch's consumer schema
+scripts/tests/                     fixture tests for the validator
+.github/workflows/capture-transcript.yml  auto-commits band-transition scans
+.github/workflows/capture-restore-transcript.yml  auto-commits the restore log
 .github/workflows/demo-scan.yml    scheduled TTL scan (self-contained,
                                    off-chain read, fails red on decay)
 .github/workflows/demo-restore.yml manually-triggered restore (RestoreFootprintOp
                                    via the TESTNET-ONLY throwaway key)
-.github/workflows/test-contract.yml cargo test on push/PR
-contracts.yml                  fixture manifest consumed by action-state-watch's
-                               self-check workflow
+.github/workflows/test-contract.yml cargo test + contracts.yml schema check
+contracts.yml                  fixture manifest, written in the shape
+                               action-state-watch's consumer loads. NOTE: that
+                               action reads its own contracts.example.yml, not
+                               this file — this is the fixture-side source of
+                               truth it was seeded from (see issue #4).
 docs/                          the deep dives (archival mechanics, TTL boundaries)
 docs-site/                     GitBook-style documentation site (SUMMARY.md)
 .transcripts/                  real terminal output from the live testnet run
@@ -80,10 +89,12 @@ SECURITY.md                   key-handling and disclosure policy
 
 ## Documentation
 
-The GitBook-style site lives in [`docs-site/`](docs-site/SUMMARY.md) and walks
-through the demo end to end: the archival lifecycle, the economics of rent,
-deploying, watching decay, restoring, the contract reference, and the CI
-workflows. The longer reference reads are in [`docs/`](docs/):
+The GitBook-style site lives in [`docs-site/`](docs-site/SUMMARY.md), is
+published at
+[https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/](https://soroban-state-sentinel.gitbook.io/archival-fixtures-demo/),
+and walks through the demo end to end: the archival lifecycle, the economics
+of rent, deploying, watching decay, restoring, the contract reference, and the
+CI workflows. The longer reference reads are in [`docs/`](docs/):
 
 - [`docs/surviving-soroban-state-archival.md`](docs/surviving-soroban-state-archival.md) —
   how Soroban storage expiry works, the sentinel's health bands, and how to

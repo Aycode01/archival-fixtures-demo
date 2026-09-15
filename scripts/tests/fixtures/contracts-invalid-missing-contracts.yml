@@ -1,0 +1,15 @@
+# INVALID fixture (CONSUMER class): has a network but no `contracts` array.
+# src/config.ts throws: "Config must include a non-empty 'contracts' array".
+#
+# This is the deliberately-broken case the fixture test asserts the validator
+# rejects. Note it also carries this repo's old fixture shape (`fixtures:` /
+# `entries:`) deliberately: that shape is what contracts.yml used before it was
+# aligned to the consumer, and it is NOT loadable by action-state-watch.
+network: testnet
+
+fixtures:
+  - name: rapid-expiry-demo
+    network: testnet
+    entries:
+      - key: VALUE
+        durability: persistent
