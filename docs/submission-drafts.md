@@ -78,12 +78,12 @@ parameters (protocol 28, `minPersistentTTL` 120,960 ledgers, verified
 "1.0.0"`) and documented in `SCHEMA.md` for downstream consumers.
 
 **Current status.** Both tool repos are published, building, and tested. The live
-demo contract is deployed and decaying on testnet. The Healthy-phase transcript is
-committed. The Critical/Archived/restore transcripts from the live decay are
-`<pending: issue #2>` — expected ~Sep 15–16 at the current decay rate (TTL = 33,172
-ledgers / ~46 h remaining as of 2026-09-14T10:14 UTC, per `demo-scan.yml` run
-[#34832138820](https://github.com/Aycode01/archival-fixtures-demo/actions/runs/34832138820)).
+demo contract is deployed and decaying on testnet. The full archival lifecycle — 
+deploy at minimum TTL, decay to Critical, and restore/extend — has been successfully 
+run against the live testnet. The end-to-end `Healthy` → `Critical` → `Healthy` 
+remediation transcripts are captured and verified against real RPC responses 
+(no synthesized data).
 
 ---
 
-*Last updated: 2026-09-14. Pending items: issue #2 (Critical/Archived/restore transcripts).*
+*Last updated: 2026-09-15. Pending items: none.*
