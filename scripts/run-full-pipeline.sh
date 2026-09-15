@@ -118,7 +118,7 @@ info "ensuring the entry lives at least ${EXTEND_TO} ledgers (contract 'extend';
 "$STELLAR_CLI_BIN" contract invoke \
     --id "$CONTRACT_ID" --source "$TESTNET_THROWAWAY_SECRET_KEY" \
     --rpc-url "$SOROBAN_RPC_URL" --network-passphrase "$SOROBAN_NETWORK_PASSPHRASE" \
-    -- extend --ledgers "$EXTEND_TO"
+    --send=yes -- extend --ledgers "$EXTEND_TO"
 ok "extend submitted"
 
 # ---------------------------------------------------------------------------
