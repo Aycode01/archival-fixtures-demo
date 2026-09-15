@@ -8,3 +8,4 @@ contracts/rapid-expiry-demo/target/
 # Python bytecode caches (scripts/read-entry-ttl.py)
 __pycache__/
 *.pyc
+bin/
