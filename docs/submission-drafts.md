@@ -167,11 +167,8 @@ Every link below was fetched live on 2026-09-14; nothing here is from memory.
 (`SUMMARY.md` + pages) that lives in the repo and is read on GitHub; it is not
 published to a URL. Do not submit a docs-site link.
 
-**There is no demo video, and this is not an oversight.** `docs/demo-recording-script.md`
-contains a *script* for recording one; it has **not been executed**. No video
-file exists anywhere in the repo or the `assets/` directory. Do not include a
-video link in the submission unless one is recorded first — the honest statement
-is that the recording script is ready and the recording is outstanding.
+**Demo Video:** The full Soroban state-archival lifecycle demonstrated by this repo has been recorded.
+Watch the video here: [https://www.loom.com/share/acdeda3bfd484173b75cf8ddc2406bcf](https://www.loom.com/share/acdeda3bfd484173b75cf8ddc2406bcf)
 
 ---
 
@@ -202,7 +199,6 @@ cannot self-merge. This is expected to close itself in ~1–3 days.
 |---|---|
 | Set the `TESTNET_THROWAWAY_SECRET_KEY` Actions secret | `demo-restore.yml`, and therefore the restore transcript (issue #2's last third) and issue #5's unmet half |
 | Merge the transcript PRs as Critical/Archived/restore land | Issue #2 closing itself |
-| Record the demo video from `docs/demo-recording-script.md` | The submission video link (currently correctly absent) |
 | Merge [PR #12](https://github.com/Aycode01/archival-fixtures-demo/pull/12) | The `contracts.yml` schema validation + these corrected drafts reaching `main` |
 | Check repo approval status in the Drips maintainer dashboard | Whether `archival-fixtures-demo` is counted separately (see the program section above) |
 
