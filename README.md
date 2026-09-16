@@ -87,6 +87,11 @@ CONTRIBUTING.md               contributing guide (git workflow rules)
 SECURITY.md                   key-handling and disclosure policy
 ```
 
+## Demo Video
+
+The full Soroban state-archival lifecycle demonstrated by this repo has been recorded.
+Watch the video here: [https://www.loom.com/share/acdeda3bfd484173b75cf8ddc2406bcf](https://www.loom.com/share/acdeda3bfd484173b75cf8ddc2406bcf)
+
 ## Documentation
 
 The GitBook-style site lives in [`docs-site/`](docs-site/SUMMARY.md), is
